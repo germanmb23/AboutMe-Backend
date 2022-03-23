@@ -1,0 +1,5 @@
+node_modules/sendgrid.env
+node_modules/
+src/emails
+app2.js
+utilities/
