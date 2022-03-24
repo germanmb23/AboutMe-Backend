@@ -59,20 +59,20 @@ const getConfig = () => {
    console.log(ret);
 };
 
-pool.query(
-   `
-         UPDATE driver
-         SET notifying = false	
-         WHERE driverid = 4`,
-   (err, res) => {
-      if (err) {
-         reject(err);
-         console.log(err);
-         return res;
-      } else {
-      }
-   }
-);
+// pool.query(
+//    `
+//          UPDATE driver
+//          SET notifying = false
+//          WHERE driverid = 4`,
+//    (err, res) => {
+//       if (err) {
+//          reject(err);
+//          console.log(err);
+//          return res;
+//       } else {
+//       }
+//    }
+// );
 
 // const date = new Date()
 // const idSolicitud = date.getMonth().toString() + date.getDay().toString() + date.getHours().toString() + date.getMinutes().toString() + date.getSeconds().toString() + date.getMilliseconds().toString()
@@ -92,6 +92,45 @@ let usersExpoToken = new Map();
 let chatMap = new Map();
 
 //------------CLIENTS---------------
+
+app.post("/isDoneRequest", (req, resp) => {
+   console.log("/isDoneRequest", req.body.idSolicitud);
+   pool.query(
+      `SELECT done
+        FROM ride
+        WHERE idCabRequest = '${req.body.idSolicitud}'`,
+      (err, res) => {
+         if (err) {
+            console.log(res.rows[0]);
+
+            resp.status(401).send({ message: "error on save ride" });
+            console.log(err);
+         } else {
+            console.log(res.rows[0]);
+            resp.send(res.rows[0]);
+            resp.status(200).end();
+         }
+      }
+   );
+});
+
+app.post("/setRideDone", (req, resp) => {
+   const { idSolicitud } = req.body;
+   pool.query(
+      `UPDATE ride
+      SET done = TRUE
+      WHERE idCabRequest = '${idSolicitud}'`,
+      (err, res) => {
+         if (err) {
+            resp.status(401).send({ message: "error on save ride" });
+            console.log(err);
+         } else {
+            resp.sendStatus(200).end();
+         }
+      }
+   );
+});
+
 app.post("/rate", (req, resp) => {
    const { toClientType, idSolicitud, rating, comment } = req.body;
    if (toClientType == "driver") {
@@ -219,24 +258,6 @@ app.post("/logIn", (req, res) => {
             //         res.status(200).end();
             //     }
             // );
-         }
-      }
-   );
-});
-
-app.post("/isDoneRequest", (req, resp) => {
-   console.log("/isDoneRequest", req.body.idSolicitud);
-   pool.query(
-      `SELECT done
-        FROM ride
-        WHERE idCabRequest = ${req.body.idSolicitud} `,
-      (err, res) => {
-         if (err) {
-            resp.status(401).send({ message: "error on save ride" });
-            console.log(err);
-         } else {
-            resp.send(res.rows);
-            resp.status(200).end();
          }
       }
    );
@@ -562,6 +583,18 @@ app.post("/clientAccept", (req, resp) => {
          if (err) {
             console.log(err);
          } else {
+            pool.query(
+               `INSERT INTO ride(idCabRequest, driverId, passengerId, latitude, longitude, timeJS)
+                VALUES (${requestData.idCabRequest}, ${requestData.choferUsername}, ${requestData.passengerUsername}, ${
+                  requestData.startLatitude
+               }, ${requestData.startLongitude}, '${new Date()}') `,
+               (err, res) => {
+                  if (err) {
+                     console.log(err);
+                  } else {
+                  }
+               }
+            );
             const data = waitingPassengerAcceptData.get(idSolicitud);
             const driverToken = res.rows[0].token;
             rideInProgressData.set(idSolicitud, { ...data, driverToken });
