@@ -59,20 +59,20 @@ const getConfig = () => {
    console.log(ret);
 };
 
-// pool.query(
-//    `
-//          UPDATE driver
-//          SET notifying = false
-//          WHERE driverid = 4`,
-//    (err, res) => {
-//       if (err) {
-//          reject(err);
-//          console.log(err);
-//          return res;
-//       } else {
-//       }
-//    }
-// );
+pool.query(
+   `
+         UPDATE driver
+         SET notifying = false
+         WHERE driverid = 5`,
+   (err, res) => {
+      if (err) {
+         reject(err);
+         console.log(err);
+         return res;
+      } else {
+      }
+   }
+);
 
 // const date = new Date()
 // const idSolicitud = date.getMonth().toString() + date.getDay().toString() + date.getHours().toString() + date.getMinutes().toString() + date.getSeconds().toString() + date.getMilliseconds().toString()
@@ -95,6 +95,8 @@ let chatMap = new Map();
 
 app.post("/isDoneRequest", (req, resp) => {
    console.log("/isDoneRequest", req.body.idSolicitud);
+   // resp.send({ done: true });
+   // resp.status(200).end();
    pool.query(
       `SELECT done
         FROM ride
@@ -228,6 +230,7 @@ app.post("/logIn", (req, res) => {
                                  console.log(res3.rows);
                                  //  result = { ...res1.rows[0], cars: res2.rows, currentCar, cabs: res3.rows };
                                  result = { ...res1.rows[0], cars: res2.rows, currentCar };
+
                                  res.send(result);
                                  res.status(200).end();
                               }
@@ -655,6 +658,7 @@ const getChoferesDisponibles = (driver_phone, value) => {
             if (err) {
                console.log(err);
             } else {
+               console.log(res.rows.length);
                resolve(res.rows);
             }
          }
