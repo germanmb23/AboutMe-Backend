@@ -131,9 +131,9 @@ app.post("/isDoneRequest", (req, resp) => {
                resp.status(200).end();
                return;
             }
-            // resp.send({ done: true });
-            // resp.status(200).end();
-            // return;
+            resp.send({ done: true });
+            resp.status(200).end();
+            return;
             resp.send(res.rows[0]);
             resp.status(200).end();
          }
