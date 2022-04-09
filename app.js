@@ -109,6 +109,11 @@ app.post("/isDoneRequest", (req, resp) => {
             console.log(err);
          } else {
             console.log(res.rows[0]);
+            if (!res.rows[0]) {
+               resp.send({ done: true });
+               resp.status(200).end();
+               return;
+            }
             resp.send(res.rows[0]);
             resp.status(200).end();
          }
@@ -305,6 +310,8 @@ const setPushNotificationToken = (username, token) => {
 };
 
 app.post("/sendMessage", (req, res) => {
+   console.log("/sendMessage");
+
    let destToken;
 
    const { clientType, message, time } = req.body;
@@ -317,12 +324,20 @@ app.post("/sendMessage", (req, res) => {
       time: time,
    };
 
+   // driverPassengerChatTokens.set(idSolicitud, {
+   //    passengerToken,
+   //    driverToken: driverToken,
+   // });
+
    const chat = chatMap.get(idSolicitud);
+   const tokens = driverPassengerChatTokens.get(idSolicitud);
    console.log(driverPassengerChatTokens.get(idSolicitud));
    console.log(messageData);
    console.log("/sendMessage", driverPassengerChatTokens, idSolicitud);
-   if (clientType == "driver") destToken = chat.tokens.driver;
-   else destToken = chat.tokens;
+   // if (clientType == "driver") destToken = chat.tokens.driver;
+   // else destToken = chat.tokens;
+   if (clientType == "driver") destToken = tokens.passengerToken;
+   else destToken = tokens.driverToken;
 
    chatMap.set(idSolicitud, { chat: [...chat.chat, messageData], tokens: chat.tokens });
 
@@ -578,6 +593,8 @@ const avisarConductores = async (
 app.post("/clientAccept", (req, resp) => {
    let idSolicitud = req.body.idSolicitud;
    const requestData = waitingPassengerAcceptData.get(idSolicitud);
+   const passengerToken = yuberRequestData.get(idSolicitud).passengerToken;
+
    pool.query(
       `SELECT token
             FROM Client  
@@ -612,11 +629,15 @@ app.post("/clientAccept", (req, resp) => {
          }
       }
    );
+   driverPassengerChatTokens.set(idSolicitud, {
+      passengerToken,
+      driverToken: driverToken,
+   });
 
    return;
    let driverUserName = yuberRequestsAcceptedData.get(idSolicitudAccepted).username;
    let driverToken = choferesDisponibles.get(driverUserName).push_notification_token;
-   let passengerToken = yuberRequestsAcceptedData.get(idSolicitudAccepted).expo_token;
+   //let passengerToken = yuberRequestsAcceptedData.get(idSolicitudAccepted).expo_token;
    driverPassengerChatTokens.set(idSolicitudAccepted, {
       passengerToken: passengerToken,
       driverToken: driverToken,
