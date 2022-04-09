@@ -63,7 +63,24 @@ pool.query(
    `
          UPDATE driver
          SET notifying = false
+
          WHERE driverid = 5`,
+   (err, res) => {
+      if (err) {
+         reject(err);
+         console.log(err);
+         return res;
+      } else {
+      }
+   }
+);
+
+pool.query(
+   `
+         UPDATE driver
+         SET notifying = false
+         
+         WHERE driverid = 4`,
    (err, res) => {
       if (err) {
          reject(err);
@@ -114,6 +131,9 @@ app.post("/isDoneRequest", (req, resp) => {
                resp.status(200).end();
                return;
             }
+            // resp.send({ done: true });
+            // resp.status(200).end();
+            // return;
             resp.send(res.rows[0]);
             resp.status(200).end();
          }
@@ -330,10 +350,10 @@ app.post("/sendMessage", (req, res) => {
    // });
 
    const chat = chatMap.get(idSolicitud);
-   const tokens = driverPassengerChatTokens.get(idSolicitud);
-   console.log(driverPassengerChatTokens.get(idSolicitud));
+   // const tokens = driverPassengerChatTokens.get(idSolicitud);
+   //console.log(driverPassengerChatTokens.get(idSolicitud));
    console.log(messageData);
-   console.log("/sendMessage", driverPassengerChatTokens, idSolicitud);
+   //console.log("/sendMessage", driverPassengerChatTokens, idSolicitud);
    // if (clientType == "driver") destToken = chat.tokens.driver;
    // else destToken = chat.tokens;
    if (clientType == "driver") destToken = chat.tokens.passengerToken;
@@ -622,6 +642,8 @@ app.post("/clientAccept", (req, resp) => {
             const driverToken = res.rows[0].token;
             rideInProgressData.set(idSolicitud, { ...data, driverToken });
             waitingPassengerAcceptData.delete(idSolicitud);
+            chatMap.set(idSolicitud, { chat: [], tokens: { passengerToken, driverToken: driverToken } });
+
             sendPushNotification(driverToken, "", {
                screen: constants.DRIVER_SCREEN,
                idSolicitud,
@@ -632,38 +654,36 @@ app.post("/clientAccept", (req, resp) => {
          }
       }
    );
-   driverPassengerChatTokens.set(idSolicitud, {
-      passengerToken,
-      driverToken: driverToken,
-   });
-
-   chatMap.set(idSolicitud, { chat: [], tokens: { passengerToken, driverToken: driverToken } });
+   // driverPassengerChatTokens.set(idSolicitud, {
+   //    passengerToken,
+   //    driverToken: driverToken,
+   // });
 
    return;
    let driverUserName = yuberRequestsAcceptedData.get(idSolicitudAccepted).username;
    let driverToken = choferesDisponibles.get(driverUserName).push_notification_token;
    //let passengerToken = yuberRequestsAcceptedData.get(idSolicitudAccepted).expo_token;
-   driverPassengerChatTokens.set(idSolicitudAccepted, {
-      passengerToken: passengerToken,
-      driverToken: driverToken,
-   });
-   //console.log('/clientAccept', driverPassengerChatTokens);
-   chatMap.set(idSolicitudAccepted, []);
-   //console.log('clientAccepted', driverPassengerChatTokens);
-   console.log("----", driverPassengerChatTokens);
-   console.log(choferesDisponibles);
-   console.log("driverToken ", driverToken);
-   choferesDisponibles.get(driverUserName).ocupado = true;
-   sendPushNotification(driverToken, "", {
-      screen: constants.DRIVER_SCREEN,
-      idSolicitud: idSolicitudAccepted,
-      done: true,
-   });
+   // driverPassengerChatTokens.set(idSolicitudAccepted, {
+   //    passengerToken: passengerToken,
+   //    driverToken: driverToken,
+   // });
+   // //console.log('/clientAccept', driverPassengerChatTokens);
+   // chatMap.set(idSolicitudAccepted, []);
+   // //console.log('clientAccepted', driverPassengerChatTokens);
+   // console.log("----", driverPassengerChatTokens);
+   // console.log(choferesDisponibles);
+   // console.log("driverToken ", driverToken);
+   // choferesDisponibles.get(driverUserName).ocupado = true;
+   // sendPushNotification(driverToken, "", {
+   //    screen: constants.DRIVER_SCREEN,
+   //    idSolicitud: idSolicitudAccepted,
+   //    done: true,
+   // });
 
-   //envio viaje a la base
-   //(idSolicitud, idChofer, fecha, hora)
-   // res.send({ IdChoferSolicitudDone });
-   res.status(200).end();
+   // //envio viaje a la base
+   // //(idSolicitud, idChofer, fecha, hora)
+   // // res.send({ IdChoferSolicitudDone });
+   // res.status(200).end();
 });
 
 // sendPushNotification("ExponentPushToken[ShUc8DPKmfX8SgFgtKQR18]", "Viaje ", {
