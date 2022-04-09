@@ -336,8 +336,8 @@ app.post("/sendMessage", (req, res) => {
    console.log("/sendMessage", driverPassengerChatTokens, idSolicitud);
    // if (clientType == "driver") destToken = chat.tokens.driver;
    // else destToken = chat.tokens;
-   if (clientType == "driver") destToken = tokens.passengerToken;
-   else destToken = tokens.driverToken;
+   if (clientType == "driver") destToken = chat.tokens.passengerToken;
+   else destToken = chat.tokens.driverToken;
 
    chatMap.set(idSolicitud, { chat: [...chat.chat, messageData], tokens: chat.tokens });
 
@@ -351,14 +351,16 @@ app.post("/getChat", (req, res) => {
    res.send(chat);
 });
 
-const limpioDatosDeSolicitud = (idSolicitud) => {
+const limpioDatosDeSolicitud = (idSolicitud, clearRequestMap = true) => {
    try {
       console.log(idSolicitudInterval);
       const coso = idSolicitudInterval.get(idSolicitud);
       clearInterval(coso);
 
       //No hay mas choferes disponibles, avisar al usuario
-      yuberRequestData.delete(idSolicitud);
+      if (clearRequestMap) {
+         yuberRequestData.delete(idSolicitud);
+      }
       arrayChoferes.delete(idSolicitud);
       idSolicitudInterval.delete(idSolicitud);
       //chatMap.delete(idSolicitud);
@@ -453,7 +455,7 @@ app.post("/YuberRequest", async (req, res) => {
 
    yuberRequestData.set(idSolicitud, newRequest);
    arrayChoferes.set(idSolicitud, resData);
-
+   console.log(yuberRequestData);
    // resData.forEach((a) => {
    //     if (!choferesDisponibles.get(a.phone)) {
    //         choferesDisponibles.set(a.phone, a);
@@ -592,6 +594,7 @@ const avisarConductores = async (
 //Passenger accepta
 app.post("/clientAccept", (req, resp) => {
    let idSolicitud = req.body.idSolicitud;
+   console.log("/clientAccept", idSolicitud, yuberRequestData);
    const requestData = waitingPassengerAcceptData.get(idSolicitud);
    const passengerToken = yuberRequestData.get(idSolicitud).passengerToken;
 
@@ -633,6 +636,8 @@ app.post("/clientAccept", (req, resp) => {
       passengerToken,
       driverToken: driverToken,
    });
+
+   chatMap.set(idSolicitud, { chat: [], tokens: { passengerToken, driverToken: driverToken } });
 
    return;
    let driverUserName = yuberRequestsAcceptedData.get(idSolicitudAccepted).username;
@@ -712,7 +717,7 @@ app.post("/acceptCabRequests", (req, resp) => {
    const startLongitude = requestData.startLongitude;
    console.log(requestData);
    waitingPassengerAcceptData.set(idSolicitud, { ...requestData, choferUsername: username, choferLocation });
-   limpioDatosDeSolicitud(idSolicitud);
+   limpioDatosDeSolicitud(idSolicitud, false);
    console.log("-------------------222-------------------------");
 
    pool.query(
