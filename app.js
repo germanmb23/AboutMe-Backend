@@ -360,7 +360,13 @@ app.post("/sendMessage", async (req, res) => {
    setChat(idSolicitud, JSON.stringify(chat));
 
    clientType == "driver" ? "d" : "p",
-      sendPushNotification(destToken, "", { screen: constants.CHAT_SCREEN, messageData });
+      sendPushNotification(
+         destToken,
+         "",
+         { screen: constants.CHAT_SCREEN, messageData },
+         "Nuevo mensaje",
+         messageData.message
+      );
    res.send(chat).end();
 });
 
