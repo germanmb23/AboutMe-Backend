@@ -59,37 +59,37 @@ const getConfig = () => {
    console.log(ret);
 };
 
-pool.query(
-   `
-         UPDATE driver
-         SET notifying = false
+// pool.query(
+//    `
+//          UPDATE driver
+//          SET notifying = false
 
-         WHERE driverid = 5`,
-   (err, res) => {
-      if (err) {
-         reject(err);
-         console.log(err);
-         return res;
-      } else {
-      }
-   }
-);
+//          WHERE driverid = 5`,
+//    (err, res) => {
+//       if (err) {
+//          reject(err);
+//          console.log(err);
+//          return res;
+//       } else {
+//       }
+//    }
+// );
 
-pool.query(
-   `
-         UPDATE driver
-         SET notifying = false
-         
-         WHERE driverid = 4`,
-   (err, res) => {
-      if (err) {
-         reject(err);
-         console.log(err);
-         return res;
-      } else {
-      }
-   }
-);
+// pool.query(
+//    `
+//          UPDATE driver
+//          SET notifying = false
+
+//          WHERE driverid = 4`,
+//    (err, res) => {
+//       if (err) {
+//          reject(err);
+//          console.log(err);
+//          return res;
+//       } else {
+//       }
+//    }
+// );
 
 // const date = new Date()
 // const idSolicitud = date.getMonth().toString() + date.getDay().toString() + date.getHours().toString() + date.getMinutes().toString() + date.getSeconds().toString() + date.getMilliseconds().toString()
@@ -131,9 +131,9 @@ app.post("/isDoneRequest", (req, resp) => {
                resp.status(200).end();
                return;
             }
-            resp.send({ done: true });
-            resp.status(200).end();
-            return;
+            // resp.send({ done: true });
+            // resp.status(200).end();
+            // return;
             resp.send(res.rows[0]);
             resp.status(200).end();
          }
@@ -329,14 +329,19 @@ const setPushNotificationToken = (username, token) => {
    });
 };
 
-app.post("/sendMessage", (req, res) => {
-   console.log("/sendMessage");
+app.post("/sendMessage", async (req, res) => {
+   console.log("/sendMessage", req.body.idSolicitud);
+   const { clientType, message, time, idSolicitud } = req.body;
 
-   let destToken;
+   const resChat = await getChat(idSolicitud);
 
-   const { clientType, message, time } = req.body;
-   let idSolicitud = parseInt(req.body.idSolicitud);
+   if (!resChat.chat) {
+      resChat.chat = JSON.stringify([]);
+   }
+   console.log("resChat.chat", resChat.chat);
+   const chat = JSON.parse(resChat.chat);
 
+   console.log(resChat);
    let messageData = {
       id: idSolicitud,
       user: clientType == "driver" ? "d" : "p",
@@ -344,31 +349,61 @@ app.post("/sendMessage", (req, res) => {
       time: time,
    };
 
-   // driverPassengerChatTokens.set(idSolicitud, {
-   //    passengerToken,
-   //    driverToken: driverToken,
-   // });
+   chat.push(messageData);
 
-   const chat = chatMap.get(idSolicitud);
-   // const tokens = driverPassengerChatTokens.get(idSolicitud);
-   //console.log(driverPassengerChatTokens.get(idSolicitud));
-   console.log(messageData);
-   //console.log("/sendMessage", driverPassengerChatTokens, idSolicitud);
-   // if (clientType == "driver") destToken = chat.tokens.driver;
-   // else destToken = chat.tokens;
-   if (clientType == "driver") destToken = chat.tokens.passengerToken;
-   else destToken = chat.tokens.driverToken;
+   let destToken;
 
-   chatMap.set(idSolicitud, { chat: [...chat.chat, messageData], tokens: chat.tokens });
+   if (clientType == "driver") destToken = resChat.passengertoken;
+   else destToken = resChat.drivertoken;
+   console.log("destToken", destToken);
+   console.log(chat);
+   setChat(idSolicitud, JSON.stringify(chat));
 
    clientType == "driver" ? "d" : "p",
       sendPushNotification(destToken, "", { screen: constants.CHAT_SCREEN, messageData });
-   res.status(200).end();
+   res.send(chat).end();
 });
 
-app.post("/getChat", (req, res) => {
-   let chat = chatMap.get(parseInt(req.body.idSolicitud));
-   res.send(chat);
+// app.post("/sendMessage", (req, res) => {
+//    console.log("/sendMessage");
+
+//    let destToken;
+
+//    const { clientType, message, time } = req.body;
+//    let idSolicitud = parseInt(req.body.idSolicitud);
+
+//    let messageData = {
+//       id: idSolicitud,
+//       user: clientType == "driver" ? "d" : "p",
+//       message: message,
+//       time: time,
+//    };
+
+//    // driverPassengerChatTokens.set(idSolicitud, {
+//    //    passengerToken,
+//    //    driverToken: driverToken,
+//    // });
+
+//    const chat = chatMap.get(idSolicitud);
+//    // const tokens = driverPassengerChatTokens.get(idSolicitud);
+//    //console.log(driverPassengerChatTokens.get(idSolicitud));
+//    console.log(messageData);
+//    //console.log("/sendMessage", driverPassengerChatTokens, idSolicitud);
+//    // if (clientType == "driver") destToken = chat.tokens.driver;
+//    // else destToken = chat.tokens;
+//    if (clientType == "driver") destToken = chat.tokens.passengerToken;
+//    else destToken = chat.tokens.driverToken;
+
+//    chatMap.set(idSolicitud, { chat: [...chat.chat, messageData], tokens: chat.tokens });
+
+//    clientType == "driver" ? "d" : "p",
+//       sendPushNotification(destToken, "", { screen: constants.CHAT_SCREEN, messageData });
+//    res.status(200).end();
+// });
+
+app.post("/getChat", async (req, res) => {
+   const resChat = await getChat(req.body.idSolicitud);
+   res.send(JSON.parse(resChat.chat));
 });
 
 const limpioDatosDeSolicitud = (idSolicitud, clearRequestMap = true) => {
@@ -705,6 +740,63 @@ const getChoferesDisponibles = (driver_phone, value) => {
                console.log(err);
             } else {
                console.log(res.rows.length);
+               resolve(res.rows);
+            }
+         }
+      );
+   });
+};
+
+const getToken = (clientId) => {
+   return new Promise((resolve, reject) => {
+      pool.query(
+         `SELECT token
+            FROM Client  
+            WHERE clientId = ${clientId} `,
+         (err, res) => {
+            if (err) {
+               console.log(err);
+            } else {
+               resolve(res.rows);
+            }
+         }
+      );
+   });
+};
+
+const getChat = (idSolicitud) => {
+   return new Promise((resolve, reject) => {
+      pool.query(
+         `SELECT chat, driverToken, passengerToken
+         FROM Ride JOIN (SELECT token AS driverToken, driverId 
+			               FROM client JOIN driver ON clientId = driverId
+			               ) AS driver ON Ride.driverId = driver.driverId
+                        JOIN
+                        (SELECT token as passengerToken, passengerId 
+                        FROM client JOIN passenger ON clientId = passengerId
+                        ) AS passenger ON Ride.passengerId = passenger.passengerId
+         WHERE idCabRequest = '${idSolicitud}'`,
+         (err, res) => {
+            if (err) {
+               console.log(err);
+            } else {
+               resolve(res.rows[0]);
+            }
+         }
+      );
+   });
+};
+
+const setChat = (idSolicitud, chat) => {
+   return new Promise((resolve, reject) => {
+      pool.query(
+         `UPDATE ride
+        SET chat =  '${chat}'
+        WHERE idCabRequest = '${idSolicitud}'`,
+         (err, res) => {
+            if (err) {
+               console.log(err);
+            } else {
                resolve(res.rows);
             }
          }
