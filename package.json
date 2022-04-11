@@ -23,6 +23,8 @@
     "pg": "^8.6.0",
     "promisfy": "^1.2.0",
     "python-shell": "^3.0.0",
+    "react-native-background-fetch": "^4.1.0",
+    "react-native-background-task": "^0.2.1",
     "unirest": "^0.6.0"
   }
 }
