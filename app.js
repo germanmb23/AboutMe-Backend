@@ -128,11 +128,10 @@ app.post("/isDoneRequest", (req, resp) => {
                resp.status(200).end();
                return;
             }
-            resp.send({ done: true });
-            resp.status(200).end();
-            return;
-            resp.send(res.rows[0]);
-            resp.status(200).end();
+            // resp.send({ done: true });
+            // resp.status(200).end();
+            // return;
+            resp.status(200).send(res.rows[0]).end();
          }
       }
    );
@@ -252,8 +251,7 @@ app.post("/logIn", (req, res) => {
                                  //  result = { ...res1.rows[0], cars: res2.rows, currentCar, cabs: res3.rows };
                                  result = { ...res1.rows[0], cars: res2.rows, currentCar };
 
-                                 res.send(result);
-                                 res.status(200).end();
+                                 res.status(200).send(result).end();
                               }
                            }
                         );
@@ -401,7 +399,7 @@ app.post("/sendMessage", async (req, res) => {
 
 app.post("/getChat", async (req, res) => {
    const resChat = await utils.getChat(pool, req.body.idSolicitud);
-   res.send(JSON.parse(resChat.chat));
+   res.send(JSON.parse(resChat.chat)).end();
 });
 
 const limpioDatosDeSolicitud = (idSolicitud, clearRequestMap = true) => {
@@ -435,8 +433,7 @@ app.post("/getChoferPosition", (req, res) => {
    const username = req.body.username;
    console.log("/getChoferPosition", username);
    const location = choferesDisponibles.get(username);
-   res.send(location);
-   res.status(200).end();
+   res.status(200).send(location).end();
 });
 
 app.post("/YuberRequest", async (req, res) => {
@@ -504,7 +501,7 @@ app.post("/YuberRequest", async (req, res) => {
 
    idSolicitudInterval.set(idSolicitud, interval);
 
-   res.send({ idSolicitud });
+   res.status(200).send({ idSolicitud }).end();
 });
 
 const avisarConductores = async (
@@ -712,7 +709,7 @@ app.post("/setCar", (req, res) => {
    const { carId, username } = req.body;
    console.log("/setCar", setCar, carId, username);
    utils.setTrabajando(pool, username, carId);
-   res.end();
+   res.status(200).end();
 });
 
 app.post("/stopYuber", (req, res) => {
@@ -764,6 +761,7 @@ app.post("/acceptCabRequests", (req, resp) => {
       }
    );
 
+   resp.status(200).end();
    return;
    //choferesDisponibles.get(myUsername).ocupado = true;
    choferesDisponibles.get(passengerUsername).latitude = req.body.latitude;
@@ -828,14 +826,14 @@ app.post("/acceptCabRequests", (req, resp) => {
 
 app.post("/send-position", (req, res) => {
    //console.log(myYuberId, req.body.latitude, req.body.longitude);
+   console.log("/send-position");
    const { username, latitude, longitude } = req.body;
 
    console.log("/send-position", username, latitude, longitude);
    if (!choferesDisponibles.get(username)) choferesDisponibles.set(username, { latitude, longitude });
    choferesDisponibles.get(username).latitude = latitude;
    choferesDisponibles.get(username).longitude = longitude;
-
-   res.status(200).end();
+   res.sendStatus(200).end();
 });
 
 //---------
