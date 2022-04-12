@@ -211,12 +211,12 @@ app.post("/logIn", (req, res) => {
                return;
             }
             res1.rows[0].clientType = res1.rows[0].clienttype;
-            res1.rows[0].username = res1.rows[0].clientid;
+            res1.rows[0].username = res1.rows[0].clientId;
             if (res1.rows[0].rolid == 2) {
                pool.query(
                   `select *
                         from car 
-                        where driverId = ${res1.rows[0].clientid}
+                        where driverId = ${res1.rows[0].clientId}
                         `,
                   (err, res2) => {
                      if (err) {
@@ -234,7 +234,7 @@ app.post("/logIn", (req, res) => {
                         pool.query(
                            `select *
                                     from ride 
-                                    where driverid = ${res1.rows[0].clientid} OR passengerId = ${res1.rows[0].clientid}
+                                    where driverid = ${res1.rows[0].clientId} OR passengerId = ${res1.rows[0].clientId}
                                     `,
                            (err, res3) => {
                               if (err) {
@@ -259,7 +259,7 @@ app.post("/logIn", (req, res) => {
                   }
                );
             } else {
-               res.send({ ...res1.rows[0], username: res1.rows[0].clientid });
+               res.send({ ...res1.rows[0], username: res1.rows[0].clientId });
                res.status(200).end();
             }
             // pool.query(
@@ -273,7 +273,7 @@ app.post("/logIn", (req, res) => {
             //             console.log(err)
             //             return
             //         } else {
-            //             result = { ...result, viajes: res3.rows, username: res1.rows[0].clientid }
+            //             result = { ...result, viajes: res3.rows, username: res1.rows[0].clientId }
 
             //         }
             //         res.send(result)
