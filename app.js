@@ -20,7 +20,6 @@ const mails = require("./src/emails/account");
 var jsonParser = bodyParser.json();
 const constants = require("./constants");
 const auth = require("./middleware/auth");
-var udp = require("dgram");
 
 const sendPushNotification = sendFirebaseNotification;
 
@@ -31,76 +30,7 @@ app.use(express.json());
 app.use(bodyParser.json());
 app.use(cors());
 app.use(bodyParser.urlencoded({ extended: false }));
-const idSolicitudDriverPasengerMap = new Map()
-//----------------UDP SOCKET---------------
-const dgram = require("dgram");
-const socket = dgram.createSocket(
-   {
-      type: "udp4",
-      reuseAddr: true, // <- NOTE: we are asking OS to let us reuse port
-   },
-   (buffer, sender) => {
-      const message = JSON.parse(buffer.toString());
-      console.log({
-         kind: "UDP_MESSAGE",
-         message,
-         sender,
-      });
-
-      switch (message.event) {
-         case SOCKET_SEND_DRIVER_LOCATION:
-            console.log("SOCKET_UPDATE_DRIVER_LOCATION");
-            //Recibo
-            const { clientId, event, latitude, longitude,idSolicitud:idSolicitudD } = message;
-            updateDriverLocation({ username: clientId, latitude, longitude });
-           const resD = idSolicitudDriverPasengerMap.get(idSolicitudD)
-           if(resD?.clientAdress){ 
-              console.log("SOCKET PASSENGER",idSolicitudD)
-              socket.send(JSON.stringify({latitude, longitude}), resD.clientAdress.port,resD.clientAdress.ip, (err) => {
-               console.log("SOCKET PASSENGER",resD.clientAdress.port,resD.clientAdress.ip)
-               console.log(err ? err : 'Sended')
-               // socket.close();
-            })}
-            break;
-         case SOCKET_GET_DRIVER_LOCATION:
-            console.log("SOCKET_GET_DRIVER_LOCATION UDP");
-            try {
-               
-               const { idSolicitud:idSolicitudP } = message;
-               const resP = idSolicitudDriverPasengerMap.get(idSolicitudP)
-               const clientAdress = {ip:sender.address,port:sender.port} 
-               idSolicitudDriverPasengerMap.set(idSolicitudP, {...resP, clientAdress})
-               console.log(idSolicitudDriverPasengerMap)
-
-               // let res = idSolicitudDriverPasengerMap.get(idSolicitudP)
-               // if(res){
-               //    res.clientAdress ={ip:sender.address,port:sender.port} 
-               // }
-               // idSolicitudDriverPasengerMap.set(idSolicitudP, res)
-               // const location = choferesDisponibles.get("4");
-               // console.log(location);
-               // socket.emit(rooms.UPDATE_DRIVER_LOCATION, JSON.stringify(location));
-            } catch (error) {
-               console.log("EROR EN SOCKET_GET_DRIVER_LOCATION");
-            }
-            break;
-         default:
-            console.log("------------------------", message);
-            break;
-      }
-
-      // demo: respond to sender
-      // socket.send(message.toUpperCase(), sender.port, sender.address, (error) => {
-      //    if (error) {
-      //       console.error(error);
-      //    } else {
-      //       console.log(JSON.parse(message));
-      //    }
-      // });
-   }
-);
-
-socket.bind(port);
+const idSolicitudDriverPasengerMap = new Map();
 
 //----------------TCP SOCKET---------------
 const http = require("http");
@@ -113,32 +43,30 @@ let socketId;
 const rooms = { UPDATE_DRIVER_LOCATION: "update-driver-location" };
 
 const socketsMap = new Map();
-
+const idSolicitudDriverIdPassengerId = new Map();
 //EVENTOS
 
 const SOCKET_SEND_DRIVER_LOCATION = 1;
 const SOCKET_GET_DRIVER_LOCATION = 2;
-
+const SOCKET_PRESENTARSE = 3;
 io.on("connection", (socket) => {
-   console.log("Socket conectado");
+   console.log("Socket conectado", socket.id);
 
-   if (false) {
-      socket.disconnect();
-      return;
-   }
-   if (socketsMap.get(socket.handshake.auth.clientId)) {
-      if (socketsMap.get(socket.handshake.auth.clientId).id != socket.id) {
+   const socketUsuario = socketsMap.get(socket.handshake.auth.clientId);
+   if (socketUsuario) {
+      if (socketUsuario.id != socket.id) {
          console.log("Ya estaba conectado desconecto y guardo NUEVO socket");
-         socketsMap.get(socket.handshake.auth.clientId).disconnect();
+         socketUsuario.disconnect();
          socketsMap.delete(socket.handshake.auth.clientId);
          socketsMap.set(socket.handshake.auth.clientId, socket);
       } else {
-         console.log("Ya estaba conectado mismo socket", socketsMap.get(socket.handshake.auth.clientId).id, socket.id);
+         console.log("Ya estaba conectado mismo socket", socketUsuario.id, socket.id);
       }
    } else {
       socketsMap.set(socket.handshake.auth.clientId, socket);
       console.log("Socket NUEVO");
    }
+   console.log("Cantidad de sockets", socketsMap.size);
 
    // console.log(socket.id);
    // socketId = socket.id;
@@ -151,22 +79,81 @@ io.on("connection", (socket) => {
    //    socket.i;
    //    socket.emit("chat message", "HOLA");
    // }, 500);
-
+   socket.emit("chat message", "HOLA");
    socket.on(rooms.UPDATE_DRIVER_LOCATION, function (msg) {
       const message = JSON.parse(msg);
       console.log("sadas");
       switch (message.event) {
          case SOCKET_SEND_DRIVER_LOCATION:
             console.log("SOCKET_UPDATE_DRIVER_LOCATION");
+            //Recibo
+            const { clientId, event, latitude, longitude, idSolicitud: idSolicitudD } = message;
+            console.log(message);
+            // updateDriverLocation({ username: clientId, latitude, longitude });
+            // const resD = idSolicitudDriverPasengerMap.get(idSolicitudD);
+            // if (resD?.clientAdress) {
+            //    console.log("SOCKET PASSENGER", idSolicitudD);
+            //    socket.send(
+            //       JSON.stringify({ latitude, longitude }),
+            //       resD.clientAdress.port,
+            //       resD.clientAdress.ip,
+            //       (err) => {
+            //          console.log("SOCKET PASSENGER", resD.clientAdress.port, resD.clientAdress.ip);
+            //          console.log(err ? err : "Sended");
+            //          // socket.close();
+            //       }
+            //    );
+            // }
+            console.log(idSolicitudDriverIdPassengerId.get(idSolicitudD));
+            if (!idSolicitudDriverIdPassengerId.get(idSolicitudD)) {
+               idSolicitudDriverIdPassengerId.set(idSolicitudD, { driverId: clientId, passengerId: 2 });
+               return;
+            }
+            const passengerId = idSolicitudDriverIdPassengerId.get(idSolicitudD)?.passengerId;
+            if (!passengerId) return;
+            console.log("AAAA");
+            const socketPassenger = socketsMap.get(passengerId);
+            if (!socketPassenger) return;
+
+            try {
+               socketPassenger.emit("driver-location", JSON.stringify({ latitude, longitude }));
+               console.log("BBB");
+            } catch (error) {
+               console.log("ERROR al enviar ubicacion del chofer al pasajero en evento SOCKET_SEND_DRIVER_LOCATION");
+            }
+
             break;
          case SOCKET_GET_DRIVER_LOCATION:
-            console.log("SOCKET_GET_DRIVER_LOCATION");
-            const location = choferesDisponibles.get("4");
-            console.log(location);
-            socket.emit(rooms.UPDATE_DRIVER_LOCATION, JSON.stringify(location));
+            try {
+               const { idSolicitud: idSolicitudP } = message;
+               const resP = idSolicitudDriverPasengerMap.get(idSolicitudP);
+               const clientAdress = { ip: sender.address, port: sender.port };
+               idSolicitudDriverPasengerMap.set(idSolicitudP, { ...resP, clientAdress });
+               console.log(idSolicitudDriverPasengerMap);
+
+               // let res = idSolicitudDriverPasengerMap.get(idSolicitudP)
+               // if(res){
+               //    res.clientAdress ={ip:sender.address,port:sender.port}
+               // }
+               // idSolicitudDriverPasengerMap.set(idSolicitudP, res)
+               // const location = choferesDisponibles.get("4");
+               // console.log(location);
+               // socket.emit(rooms.UPDATE_DRIVER_LOCATION, JSON.stringify(location));
+            } catch (error) {
+               console.log("EROR EN SOCKET_GET_DRIVER_LOCATION");
+            }
+            break;
+         case SOCKET_PRESENTARSE:
+            console.log("SOCKET_PRESENTARSE");
+            if (message.clientId && message.idSolicitud) {
+               console.log(message.clientId, message.idSolicitud);
+               idSolicitudDriverIdPassengerId.get(message.idSolicitud).passengerId = message.clientId;
+            }
+            console.log(message);
             break;
          default:
             console.log("------------------------", message);
+
             break;
       }
 
@@ -443,7 +430,8 @@ app.post("/logIn", (req, res) => {
 app.post("/saveRide", async (req, resp) => {
    console.log("/saveRide");
    const { latitude, longitude, driverUsername, passengerUsername, idSolicitud } = req.body;
-   idSolicitudDriverPasengerMap.set(idSolicitud)={clientAdress:{ip:null, port:null}}
+   //idSolicitudDriverPasengerMap.set(idSolicitud)={clientAdress:{ip:null, port:null}}
+   idSolicitudDriverIdPassengerId.set(idSolicitud, { passengerId: passengerUsername, driverId: driverUsername });
    console.log("/saveRide", driverUsername, passengerUsername, latitude, longitude, idSolicitud);
    pool.query(
       `INSERT INTO ride(idCabRequest, driverId, passengerId, latitude, longitude)
