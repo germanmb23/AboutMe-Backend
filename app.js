@@ -13,7 +13,9 @@ const utils = require("./src/functions/utils");
 
 const app = express();
 var bodyParser = require("body-parser");
-const port = process.env.PORT || 3333;
+const port = 3333;
+//const port = process.env.PORT || 3333;
+
 const mails = require("./src/emails/account");
 var jsonParser = bodyParser.json();
 const constants = require("./constants");
