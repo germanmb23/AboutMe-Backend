@@ -2,7 +2,7 @@ const setNotificando = (pool, username, value) => {
    pool.query(
       `UPDATE driver
 		SET notifying = ${value ? "TRUE" : "FALSE"}
-		WHERE driverId = ${username}`,
+		WHERE "driverId" = ${username}`,
       (err, res) => {
          if (err) {
             console.log("Error signIn DB");
@@ -21,15 +21,15 @@ const setNotificando = (pool, username, value) => {
 const getChat = (pool, idSolicitud) => {
    return new Promise((resolve, reject) => {
       pool.query(
-         `SELECT chat, driverToken, passengerToken
-         FROM Ride JOIN (SELECT token AS driverToken, driverId 
-			               FROM client JOIN driver ON clientId = driverId
-			               ) AS driver ON Ride.driverId = driver.driverId
+         `SELECT chat, "driverToken", "passengerToken"
+         FROM Ride JOIN (SELECT token AS "driverToken", "driverId" 
+			               FROM client JOIN driver ON "clientId" = "driverId"
+			               ) AS driver ON Ride."driverId" = driver."driverId"
                         JOIN
-                        (SELECT token as passengerToken, passengerId 
-                        FROM client JOIN passenger ON clientId = passengerId
-                        ) AS passenger ON Ride.passengerId = passenger.passengerId
-         WHERE idCabRequest = '${idSolicitud}'`,
+                        (SELECT token as "passengerToken", "passengerId" 
+                        FROM client JOIN passenger ON "clientId" = "passengerId"
+                        ) AS passenger ON Ride."passengerId" = passenger."passengerId"
+         WHERE "idCabRequest" = '${idSolicitud}'`,
          (err, res) => {
             if (err) {
                console.log(err);
@@ -46,7 +46,7 @@ const setChat = (pool, idSolicitud, chat) => {
       pool.query(
          `UPDATE ride
         SET chat =  '${chat}'
-        WHERE idCabRequest = '${idSolicitud}'`,
+        WHERE "idCabRequest" = '${idSolicitud}'`,
          (err, res) => {
             if (err) {
                console.log(err);
@@ -62,8 +62,8 @@ const getChoferesDisponibles = (pool) => {
    return new Promise((resolve, reject) => {
       pool.query(
          `SELECT *
-            FROM Driver JOIN Client ON driver.driverId = client.clientId 
-            WHERE working = TRUE AND cabInProgress = FALSE AND notifying = FALSE `,
+            FROM Driver JOIN Client ON driver."driverId" = client."clientId" 
+            WHERE working = TRUE AND "cabInProgress" = FALSE AND notifying = FALSE `,
          (err, res) => {
             if (err) {
                console.log(err);
@@ -79,8 +79,8 @@ const getChoferesDisponibles = (pool) => {
 const setEnViaje = (pool, username, value) => {
    pool.query(
       `UPDATE driver
-		SET cabInProgress = ${value ? "TRUE" : "FALSE"}
-		WHERE driverId = ${username}`,
+		SET "cabInProgress" = ${value ? "TRUE" : "FALSE"}
+		WHERE "driverId" = ${username}`,
       (err, res) => {
          if (err) {
             console.log("Error signIn DB");
@@ -101,7 +101,7 @@ const setTrabajando = (pool, username, value) => {
    pool.query(
       `UPDATE driver
         SET working =  ${value ? "TRUE" : "FALSE"}
-        WHERE driverId = ${username}`,
+        WHERE "driverId" = ${username}`,
       (err, res) => {
          if (err) {
             console.log("Error signIn DB");
@@ -117,8 +117,8 @@ const setTrabajando = (pool, username, value) => {
 const setCar = (pool, username, carId) => {
    pool.query(
       `UPDATE driver
-        SET activeCar =  ${carId}
-        WHERE driverId = ${username}`,
+        SET "activeCar" =  ${carId}
+        WHERE "driverId" = ${username}`,
       (err, res) => {
          if (err) {
             console.log("Error signIn DB");
@@ -136,7 +136,7 @@ const getToken = (pool, clientId) => {
       pool.query(
          `SELECT token
             FROM Client  
-            WHERE clientId = ${clientId}`,
+            WHERE "clientId" = ${clientId}`,
          (err, res) => {
             if (err) {
                console.log(err);
@@ -153,7 +153,7 @@ const isFreeDriver = (pool, username, checkNotificando, check) => {
       pool.query(
          `SELECT *
 			FROM driver
-		    WHERE driverId = ${username} AND working = TRUE AND notifying = FALSE AND cabInProgress = FALSE`,
+		    WHERE "driverId" = ${username} AND working = TRUE AND notifying = FALSE AND "cabInProgress" = FALSE`,
          (err, res) => {
             if (err) {
                console.log(err);
