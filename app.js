@@ -496,7 +496,8 @@ app.post("/sendMessage", async (req, res) => {
       else destToken = resChat.drivertoken;
       utils.setChat(pool, idSolicitud, JSON.stringify(chat));
 
-      clientType == "driver" ? "d" : "p",
+      clientType == "driver" ? "d" : "p";
+      if (destToken) {
          sendPushNotification(
             destToken,
             "",
@@ -504,6 +505,9 @@ app.post("/sendMessage", async (req, res) => {
             "Nuevo mensaje",
             messageData.message
          );
+      } else {
+         console.log("NO ES POSIBLE ENVIAR NOTIFICACION, NO SE PUDO OBTENER TOKEN");
+      }
       res.send(chat).end();
    } catch (error) {
       console.log("ERROR end sendMessage");
