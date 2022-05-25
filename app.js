@@ -43,6 +43,7 @@ let socketId;
 const rooms = { UPDATE_DRIVER_LOCATION: "update-driver-location" };
 
 const socketsMap = new Map();
+
 const idSolicitudDriverIdPassengerId = new Map();
 //EVENTOS
 
@@ -117,7 +118,6 @@ io.on("connection", (socket) => {
 
             try {
                socketPassenger.emit("driver-location", JSON.stringify({ latitude, longitude }));
-               console.log("BBB");
             } catch (error) {
                console.log("ERROR al enviar ubicacion del chofer al pasajero en evento SOCKET_SEND_DRIVER_LOCATION");
             }
@@ -469,41 +469,45 @@ const setPushNotificationToken = (username, token) => {
 };
 
 app.post("/sendMessage", async (req, res) => {
-   console.log("/sendMessage", req.body.idSolicitud);
-   let clientType = req.headers["x-user-type"];
-   const { message, time, idSolicitud } = req.body;
+   try {
+      console.log("/sendMessage", req.body.idSolicitud);
+      let clientType = req.headers["x-user-type"];
+      const { message, time, idSolicitud } = req.body;
 
-   const resChat = await utils.getChat(pool, idSolicitud);
+      const resChat = await utils.getChat(pool, idSolicitud);
 
-   if (!resChat.chat) {
-      resChat.chat = JSON.stringify([]);
+      if (!resChat.chat) {
+         resChat.chat = JSON.stringify([]);
+      }
+      const chat = JSON.parse(resChat.chat);
+
+      let messageData = {
+         id: idSolicitud,
+         user: clientType == "driver" ? "d" : "p",
+         message: message,
+         time: time,
+      };
+
+      chat.push(messageData);
+
+      let destToken;
+
+      if (clientType == "driver") destToken = resChat.passengertoken;
+      else destToken = resChat.drivertoken;
+      utils.setChat(pool, idSolicitud, JSON.stringify(chat));
+
+      clientType == "driver" ? "d" : "p",
+         sendPushNotification(
+            destToken,
+            "",
+            { screen: constants.CHAT_SCREEN, messageData },
+            "Nuevo mensaje",
+            messageData.message
+         );
+      res.send(chat).end();
+   } catch (error) {
+      console.log("ERROR end sendMessage");
    }
-   const chat = JSON.parse(resChat.chat);
-
-   let messageData = {
-      id: idSolicitud,
-      user: clientType == "driver" ? "d" : "p",
-      message: message,
-      time: time,
-   };
-
-   chat.push(messageData);
-
-   let destToken;
-
-   if (clientType == "driver") destToken = resChat.passengertoken;
-   else destToken = resChat.drivertoken;
-   utils.setChat(pool, idSolicitud, JSON.stringify(chat));
-
-   clientType == "driver" ? "d" : "p",
-      sendPushNotification(
-         destToken,
-         "",
-         { screen: constants.CHAT_SCREEN, messageData },
-         "Nuevo mensaje",
-         messageData.message
-      );
-   res.send(chat).end();
 });
 
 // app.post("/sendMessage", (req, res) => {
