@@ -63,7 +63,7 @@ const SOCKET_SEND_DRIVER_LOCATION = 1;
 const SOCKET_GET_DRIVER_LOCATION = 2;
 const SOCKET_PRESENTARSE = 3;
 io.on("connection", (socket) => {
-   // console.log("Socket conectado", socket.id);
+   console.log("Socket conectado", socket.id);
 
    // const socketUsuario = socketsMap.get(socket.handshake.auth.clientId);
    // if (socketUsuario) {
