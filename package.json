@@ -19,6 +19,7 @@
       "expo-server-sdk": "^3.6.0",
       "express": "^4.17.1",
       "firebase-admin": "^9.11.1",
+      "io-session-handler": "^1.0.74",
       "node-mailjet": "^3.3.4",
       "nodemon": "^2.0.15",
       "pg": "^8.6.0",

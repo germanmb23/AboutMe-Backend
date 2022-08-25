@@ -46,6 +46,18 @@ const socketsMap = new Map();
 
 const idSolicitudDriverIdPassengerId = new Map();
 //EVENTOS
+// Initialization
+const session_handler = require("io-session-handler").from(io);
+session_handler.connectionListener((connection) => {
+   console.log("connectionListener", connection);
+   console.log(session_handler.sessions);
+});
+
+session_handler.onMessageDelivered((data) => {
+   console.log("onMessageDelivered", data);
+   let sent = session_handler.pushMessage("client-token", "dataaaaaaaa");
+   console.log("bbbbbb", sent);
+});
 
 const SOCKET_SEND_DRIVER_LOCATION = 1;
 const SOCKET_GET_DRIVER_LOCATION = 2;
