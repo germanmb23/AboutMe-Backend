@@ -63,7 +63,7 @@ const SOCKET_SEND_DRIVER_LOCATION = 1;
 const SOCKET_GET_DRIVER_LOCATION = 2;
 const SOCKET_PRESENTARSE = 3;
 io.on("connection", (socket) => {
-   console.log("Socket conectado", socket.id);
+   // console.log("Socket conectado", socket.id);
 
    // const socketUsuario = socketsMap.get(socket.handshake.auth.clientId);
    // if (socketUsuario) {
@@ -494,7 +494,6 @@ app.post("/sendMessage", async (req, res) => {
       const { message, time, idSolicitud } = req.body;
 
       const resChat = await utils.getChat(pool, idSolicitud);
-
       if (!resChat.chat) {
          resChat.chat = JSON.stringify([]);
       }
@@ -511,8 +510,8 @@ app.post("/sendMessage", async (req, res) => {
 
       let destToken;
 
-      if (clientType == "driver") destToken = resChat.passengertoken;
-      else destToken = resChat.drivertoken;
+      if (clientType == "driver") destToken = resChat.passengerToken;
+      else destToken = resChat.driverToken;
       utils.setChat(pool, idSolicitud, JSON.stringify(chat));
 
       clientType == "driver" ? "d" : "p";
@@ -521,7 +520,7 @@ app.post("/sendMessage", async (req, res) => {
             destToken,
             "",
             { screen: constants.CHAT_SCREEN, messageData },
-            "Nuevo mensaje",
+            "Mensaje del conductor",
             messageData.message
          );
       } else {
@@ -883,8 +882,39 @@ app.post("/startYuber", (req, res) => {
 app.post("/setCar", (req, res) => {
    const username = req.header("x-user-id");
    const { carId } = req.body;
-   console.log("/setCar", setCar, carId, username);
-   utils.setTrabajando(pool, username, carId);
+   console.log("/setCar", carId, username);
+   utils.setCar(pool, username, carId);
+   res.status(200).end();
+});
+
+app.put("/newCar", async (req, res) => {
+   console.log("/newCar");
+   const username = req.header("x-user-id");
+   const { plateNumber, colour, model, brand, typeColour } = req.body;
+
+   const result1 = await pool.query(
+      `
+      INSERT INTO car ("plateNumber", colour, model, brand, "typeColour", "driverId")
+      VALUES ('${plateNumber}', '${colour}', '${model}', '${brand}', '${typeColour}', ${username})
+      RETURNING *`
+   );
+
+   pool.query(
+      `
+         UPDATE driver
+         SET "carId" = ${result1.rows[0].carId}, "activeCar" = ${result1.rows[0].carId}
+         where "driverId" = ${username};
+         `
+   );
+
+   res.json(result1.rows[0]).status(200).end();
+});
+
+app.post("/deleteCar", (req, res) => {
+   const { carId } = req.body;
+   console.log("deleteCar: ", carId);
+   pool.query(`DELETE FROM car
+         WHERE "carId" = ${carId};`);
    res.status(200).end();
 });
 
