@@ -29,7 +29,6 @@ const intervaloDeAviso = 10000; //10 segundos
 app.use(express.json());
 app.use(bodyParser.json());
 app.use(cors());
-app.use(bodyParser.urlencoded({ extended: false }));
 const idSolicitudDriverPasengerMap = new Map();
 
 //----------------TCP SOCKET---------------
@@ -95,8 +94,8 @@ io.on("connection", (socket) => {
    socket.emit("chat message", "HOLA");
    socket.on(rooms.UPDATE_DRIVER_LOCATION, function (msg) {
       try {
-         const message = JSON.parse(msg);
          console.log("sadas");
+         const message = JSON.parse(msg);
          switch (message.event) {
             case SOCKET_SEND_DRIVER_LOCATION:
                console.log("SOCKET_UPDATE_DRIVER_LOCATION");
@@ -877,6 +876,7 @@ app.post("/startYuber", (req, res) => {
    const username = req.header("x-user-id");
    console.log("/startYuber", username);
    utils.setTrabajando(pool, username, true);
+   res.status(200).end();
 });
 
 app.post("/setCar", (req, res) => {
@@ -922,6 +922,7 @@ app.post("/stopYuber", (req, res) => {
    const username = req.header("x-user-id");
    console.log("/stopYuber", username);
    utils.setTrabajando(pool, username, false);
+   res.status(200).end();
 });
 
 //chofer Acepta
@@ -1050,9 +1051,10 @@ const updateDriverLocation = ({ username, latitude, longitude }) => {
 };
 //---------
 
-app.post("/getRides", async (req, resp) => {
+app.get("/getRides/:from/:to", (req, resp) => {
+   const { from, to } = req.params;
    const username = req.header("x-user-id");
-   console.log("getRides", username, req.body.from, req.body.to);
+   console.log("getRides", username, from, to);
    pool.query(
       `SELECT date, paid, latitude, longitude, "idCabRequest"
         FROM ride
@@ -1070,7 +1072,7 @@ app.post("/getRides", async (req, resp) => {
                   ride.paid ? paid++ : whithoutPaying++;
                });
                const result = {};
-               result.rides = res.rows.slice(req.body.from, req.body.to);
+               result.rides = res.rows.slice(from, to);
                result.paid = paid;
                result.totalRides = res.rows.length;
                result.whithoutPaying = whithoutPaying;
