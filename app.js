@@ -354,95 +354,99 @@ app.post("/rate", (req, resp) => {
 });
 
 app.post("/logIn", (req, res) => {
-   const { idClient, phone, username } = req.body;
+   try {
+      const { idClient, phone, username } = req.body;
 
-   let result;
-   let cabs;
+      let result;
+      let cabs;
 
-   pool.query(
-      `SELECT *
+      pool.query(
+         `SELECT *
         FROM client FULL JOIN driver ON client."clientId" = driver."driverId"
         FULL JOIN passenger ON client."clientId" = passenger."passengerId"
         FULL JOIN role ON client."rolId" = role."rolId"
         where phone = '${phone}'`,
-      (err, res1) => {
-         if (err) {
-            console.log(err);
-            return res1;
-         } else {
-            if (res1.rows.length == 0) {
-               res.status(401).end();
-               return;
-            }
-            res1.rows[0].username = res1.rows[0].clientId;
-            if (res1.rows[0].rolId == 2) {
-               pool.query(
-                  `select *
+         (err, res1) => {
+            if (err) {
+               console.log(err);
+               return res1;
+            } else {
+               if (res1.rows.length == 0) {
+                  res.status(401).end();
+                  return;
+               }
+               res1.rows[0].username = res1.rows[0].clientId;
+               if (res1.rows[0].rolId == 2) {
+                  pool.query(
+                     `select *
                         from car 
                         where "driverId" = ${res1.rows[0].clientId}
                         `,
-                  (err, res2) => {
-                     if (err) {
-                        console.log("**** Error 1 ****");
-                        console.log(err);
-                        return;
-                     } else {
-                        let currentCar = null;
-                        if (res1.rows[0].carId) {
-                           currentCar = res2.rows.find((c) => c.carId == res1.rows[0].activeCar);
-                        }
-                        console.log(res1.rows[0].activeCar);
+                     (err, res2) => {
+                        if (err) {
+                           console.log("**** Error 1 ****");
+                           console.log(err);
+                           return;
+                        } else {
+                           let currentCar = null;
+                           if (res1.rows[0].carId) {
+                              currentCar = res2.rows.find((c) => c.carId == res1.rows[0].activeCar);
+                           }
+                           console.log(res1.rows[0].activeCar);
 
-                        pool.query(
-                           `select *
+                           pool.query(
+                              `select *
                                     from ride 
                                     where "driverId" = ${res1.rows[0].clientId} OR "passengerId" = ${res1.rows[0].clientId}
                                     `,
-                           (err, res3) => {
-                              if (err) {
-                                 console.log("**** Error 3 ****");
-                                 console.log(err);
-                                 return;
-                              } else {
-                                 let currentCar = null;
-                                 if (res1.rows[0].carId) {
-                                    currentCar = res2.rows.find((c) => c.carId == res1.rows[0].activeCar);
+                              (err, res3) => {
+                                 if (err) {
+                                    console.log("**** Error 3 ****");
+                                    console.log(err);
+                                    return;
+                                 } else {
+                                    let currentCar = null;
+                                    if (res1.rows[0].carId) {
+                                       currentCar = res2.rows.find((c) => c.carId == res1.rows[0].activeCar);
+                                    }
+                                    //  result = { ...res1.rows[0], cars: res2.rows, currentCar, cabs: res3.rows };
+                                    result = { ...res1.rows[0], cars: res2.rows, currentCar };
+
+                                    res.status(200).send(result).end();
                                  }
-                                 //  result = { ...res1.rows[0], cars: res2.rows, currentCar, cabs: res3.rows };
-                                 result = { ...res1.rows[0], cars: res2.rows, currentCar };
-
-                                 res.status(200).send(result).end();
                               }
-                           }
-                        );
+                           );
+                        }
                      }
-                  }
-               );
-            } else {
-               res.send({ ...res1.rows[0], username: res1.rows[0].clientId });
-               res.status(200).end();
-            }
-            // pool.query(
-            //     `
-            //     select *
-            //     from ride
-            //     where driverId = ${idClient} OR passengerId = ${idClient}
-            //     `,
-            //     (err, res3) => {
-            //         if (err) {
-            //             console.log(err)
-            //             return
-            //         } else {
-            //             result = { ...result, viajes: res3.rows, username: res1.rows[0].clientId }
+                  );
+               } else {
+                  res.send({ ...res1.rows[0], username: res1.rows[0].clientId });
+                  res.status(200).end();
+               }
+               // pool.query(
+               //     `
+               //     select *
+               //     from ride
+               //     where driverId = ${idClient} OR passengerId = ${idClient}
+               //     `,
+               //     (err, res3) => {
+               //         if (err) {
+               //             console.log(err)
+               //             return
+               //         } else {
+               //             result = { ...result, viajes: res3.rows, username: res1.rows[0].clientId }
 
-            //         }
-            //         res.send(result)
-            //         res.status(200).end();
-            //     }
-            // );
+               //         }
+               //         res.send(result)
+               //         res.status(200).end();
+               //     }
+               // );
+            }
          }
-      }
-   );
+      );
+   } catch (error) {
+      console.log("LogIn", error);
+   }
 });
 
 app.post("/saveRide", async (req, resp) => {
