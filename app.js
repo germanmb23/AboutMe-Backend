@@ -612,73 +612,75 @@ app.post("/getChoferPosition", (req, res) => {
 });
 
 app.post("/YuberRequest", async (req, res) => {
-   const passengerUsername = req.header("x-user-id");
-
-   const date = new Date();
-   let idSolicitud =
-      date.getMonth().toString() +
-      date.getDay().toString() +
-      date.getHours().toString() +
-      date.getMinutes().toString() +
-      date.getSeconds().toString() +
-      date.getMilliseconds().toString();
-
-   console.log("/YuberRequest", idSolicitud);
-
-   const { token, latitude, longitude, requestTime } = req.body;
-
-   let newRequest = {
-      idCabRequest: idSolicitud,
-      accepted: false,
-      startLatitude: latitude,
-      startLongitude: longitude,
-      passengerToken: req.body.token,
-      passengerUsername: passengerUsername,
-      requestTime: requestTime,
-      iterador: 0,
-   };
-   //let resData = getArrayFromMap(choferesDisponibles);
-   let resData;
    try {
+      const passengerUsername = req.header("x-user-id");
+
+      const date = new Date();
+      let idSolicitud =
+         date.getMonth().toString() +
+         date.getDay().toString() +
+         date.getHours().toString() +
+         date.getMinutes().toString() +
+         date.getSeconds().toString() +
+         date.getMilliseconds().toString();
+
+      console.log("/YuberRequest", idSolicitud);
+
+      const { token, latitude, longitude, requestTime } = req.body;
+
+      let newRequest = {
+         idCabRequest: idSolicitud,
+         accepted: false,
+         startLatitude: latitude,
+         startLongitude: longitude,
+         passengerToken: req.body.token,
+         passengerUsername: passengerUsername,
+         requestTime: requestTime,
+         iterador: 0,
+      };
+      //let resData = getArrayFromMap(choferesDisponibles);
+      let resData;
+
       await utils.getChoferesDisponibles(pool).then((e) => {
          resData = e;
       });
+      console.log("new req", resData.length);
+
+      // if (resData.length == 0) {
+      // 	sendPushNotification(req.body.myExpoToken, '', {
+      // 		screen: constants.WAITING_DRIVER_SCREEN,
+      // 		allDriversNotified: true,
+      // 	});
+      // 	sendPushNotification(req.body.myExpoToken, '', {
+      // 		screen: constants.WAITING_DRIVER_SCREEN,
+      // 		allDriversNotified: true,
+      // 	});
+      // 	res.send({ idSolicitud: idSolicitud });
+      // 	return;
+      // }
+
+      yuberRequestData.set(idSolicitud, newRequest);
+      arrayChoferes.set(idSolicitud, resData);
+      // resData.forEach((a) => {
+      //     if (!choferesDisponibles.get(a.phone)) {
+      //         choferesDisponibles.set(a.phone, a);
+      //     }
+      // });
+
+      const interval = setInterval(
+         () =>
+            avisarConductores(passengerUsername, idSolicitud, resData.length, latitude, longitude, token, requestTime),
+         intervaloDeAviso
+      );
+
+      avisarConductores(passengerUsername, idSolicitud, resData.length, latitude, longitude, token, requestTime);
+
+      idSolicitudInterval.set(idSolicitud, interval);
+
+      res.status(200).send({ idSolicitud }).end();
    } catch (error) {
       console.log(error);
    }
-   console.log("new req", resData.length);
-
-   // if (resData.length == 0) {
-   // 	sendPushNotification(req.body.myExpoToken, '', {
-   // 		screen: constants.WAITING_DRIVER_SCREEN,
-   // 		allDriversNotified: true,
-   // 	});
-   // 	sendPushNotification(req.body.myExpoToken, '', {
-   // 		screen: constants.WAITING_DRIVER_SCREEN,
-   // 		allDriversNotified: true,
-   // 	});
-   // 	res.send({ idSolicitud: idSolicitud });
-   // 	return;
-   // }
-
-   yuberRequestData.set(idSolicitud, newRequest);
-   arrayChoferes.set(idSolicitud, resData);
-   // resData.forEach((a) => {
-   //     if (!choferesDisponibles.get(a.phone)) {
-   //         choferesDisponibles.set(a.phone, a);
-   //     }
-   // });
-
-   const interval = setInterval(
-      () => avisarConductores(passengerUsername, idSolicitud, resData.length, latitude, longitude, token, requestTime),
-      intervaloDeAviso
-   );
-
-   avisarConductores(passengerUsername, idSolicitud, resData.length, latitude, longitude, token, requestTime);
-
-   idSolicitudInterval.set(idSolicitud, interval);
-
-   res.status(200).send({ idSolicitud }).end();
 });
 
 const avisarConductores = async (
