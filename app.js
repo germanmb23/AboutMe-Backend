@@ -199,6 +199,10 @@ server.listen(port, () => {
    console.log("Server is up on port " + port);
 });
 
+app.get("/ping", (req, resp) => {
+   resp.status(200).end();
+});
+
 const getConfig = () => {
    const ret = pool.query(
       `
