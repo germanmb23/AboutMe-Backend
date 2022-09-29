@@ -1,3 +1,7 @@
+--Para eliminar el conenido de una tabla
+--TRUNCATE usersetting;
+--DELETE FROM table_name;
+
 DROP TABLE IF EXISTS Rol cascade;
 DROP TABLE IF EXISTS Client cascade;
 DROP TABLE IF EXISTS driver cascade;
@@ -60,10 +64,11 @@ CREATE TABLE Car(
     carId INT GENERATED ALWAYS AS IDENTITY,
     driverId INT,
   	plateNumber TEXT,
- 	colour TEXT,
+ 	  colour TEXT,
   	model TEXT,
     brand TEXT,
     typeColour TEXT, --para identificar la imagene en el front
+    car TEXT;
     PRIMARY KEY(carId),
     FOREIGN KEY(driverId) REFERENCES Driver(driverId)
 );
@@ -174,3 +179,46 @@ WITH new_car AS (
 UPDATE Driver
 SET carId = (select carId from new_car)
 WHERE driverId = 4;
+
+
+
+--Preferencias Configuracion de usuario
+CREATE TABLE UserSetting(
+    "idUserSetting" INT GENERATED ALWAYS AS IDENTITY,
+    "clientId" INT,
+    "idSetting" INT,
+    "value" BOOLEAN,
+    activo BOOLEAN,
+    primary key ( "clientId", "idSetting"),
+    FOREIGN KEY("clientId") REFERENCES Client("clientId"),
+    FOREIGN KEY("idSetting") REFERENCES Setting("idSetting")
+);
+
+CREATE TABLE Setting(
+    "idSetting" INT,
+    title TEXT,
+    subtitle TEXT,
+    primary key ("idSetting")
+);
+
+INSERT INTO setting("idSetting",title,subtitle)  VALUES (1, 'Como se calcula la tarifa', 'La tarifa se calcula en base a las tarifas de los conductores que se encuentran disponibles actualmente, ten en cuenta que pueden tener pequeñas variaciones.');
+INSERT INTO Setting("idSetting",title,subtitle) VALUES (2, 'Puedo solicitar viajes para otras personas', 'Si puedes hacerlo, ten en cuenta que debes asegurarte  coordinar adecuadamente con la personas a la que le solicita el viaje y poder tener comunicacion con ella por si surge algun inconveniente.');
+INSERT INTO Setting("idSetting",title,subtitle) VALUES (3, 'Metodos de pago', 'Actualmente el metodos de pagos aceptado es solamente efectivo.');
+
+insert into usersetting("clientId","idSetting",activo)
+select "clientId", "idSetting", True
+from client
+cross join setting;
+
+CREATE TABLE Help(
+    "idHelp" INT,
+    title TEXT,
+    subtitle TEXT,
+    primary key ("idHelp")
+);
+
+INSERT INTO help("idHelp",title,subtitle)  VALUES (1, 'Como se calcula la tarifa', 'La tarifa se calcula en base a las tarifas de los conductores que se encuentran disponibles actualmente, ten en cuenta que pueden tener pequeñas variaciones.');
+INSERT INTO help("idHelp",title,subtitle) VALUES (2, 'Puedo solicitar viajes para otras personas', 'Si puedes hacerlo, ten en cuenta que debes asegurarte  coordinar adecuadamente con la personas a la que le solicita el viaje y poder tener comunicacion con ella por si surge algun inconveniente.');
+INSERT INTO help("idHelp",title,subtitle) VALUES (3, 'Metodos de pago', 'Actualmente el metodos de pagos aceptado es solamente efectivo.');
+
+

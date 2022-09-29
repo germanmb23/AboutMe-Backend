@@ -22,6 +22,7 @@ const sendFirebaseNotification = async (
          title,
          body,
          sound,
+         // android_channel_id: "new_request_2",
       },
       data: { data: JSON.stringify(data) },
    };

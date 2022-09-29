@@ -41,6 +41,40 @@ const getChat = (pool, idSolicitud) => {
    });
 };
 
+const getUserSettings = (pool, clientId) => {
+   return new Promise((resolve, reject) => {
+      pool.query(
+         `SELECT * 
+         FROM usersetting us JOIN setting s on (us."idSetting" = s."idSetting")
+         WHERE "clientId" = '${clientId}'`,
+         (err, res) => {
+            if (err) {
+               console.log(err);
+            } else {
+               resolve(res.rows);
+            }
+         }
+      );
+   });
+};
+
+const setUserSettings = (pool, idUserSetting, value) => {
+   return new Promise((resolve, reject) => {
+      pool.query(
+         `UPDATE usersetting
+         SET value = ${value}
+         WHERE "idUserSetting" = '${idUserSetting}'`,
+         (err, res) => {
+            if (err) {
+               console.log(err);
+            } else {
+               resolve(res.rows);
+            }
+         }
+      );
+   });
+};
+
 const setChat = (pool, idSolicitud, chat) => {
    return new Promise((resolve, reject) => {
       pool.query(
@@ -97,6 +131,7 @@ const setEnViaje = (pool, username, value) => {
       }
    );
 };
+
 const setTrabajando = (pool, username, value) => {
    pool.query(
       `UPDATE driver
@@ -166,6 +201,29 @@ const isFreeDriver = (pool, username, checkNotificando, check) => {
    });
 };
 
+const getClient = (pool, username) => {
+   return new Promise((resolve, reject) => {
+      pool.query(
+         `SELECT * 
+      FROM client
+      WHERE "clientId" = ${username}`,
+         (err, res) => {
+            if (err) {
+               console.log("Error signIn DB");
+               console.log(err);
+            } else {
+               console.log(res.rows.length);
+               resolve(res.rows[0]);
+               try {
+               } catch (error) {
+                  console.log("Error en getClient");
+               }
+            }
+         }
+      );
+   });
+};
+
 module.exports = {
    setNotificando,
    getChat,
@@ -176,4 +234,7 @@ module.exports = {
    getToken,
    isFreeDriver,
    setCar,
+   getClient,
+   getUserSettings,
+   setUserSettings,
 };

@@ -13,8 +13,8 @@ const utils = require("./src/functions/utils");
 
 const app = express();
 var bodyParser = require("body-parser");
-const port = process.env.PORT || 3333;
-//const port = process.env.PORT || 3333;
+const port = process.env.PORT || 4444;
+//const port = process.env.PORT || 4444;
 
 const mails = require("./src/emails/account");
 var jsonParser = bodyParser.json();
@@ -23,6 +23,17 @@ const auth = require("./middleware/auth");
 
 const sendPushNotification = sendFirebaseNotification;
 
+const eventes = { VIAJE_TOMADO: 1 };
+
+sendPushNotification(
+   "cEAlxghRQRi8Q2Jth30nvu:APA91bEy-96g9z9iP7w8UxV1Rsmt-wDioD3_cuNvvvPIFy-eXpvVyYwCwIPLBTAcATWDAHWm5i48xXPZ1g9xTroOwupevJVvZUQqMQYdEG9Jq_DikcHC5CxULZcaRwLXji2jQRUApBYm",
+   "",
+   {
+      screen: constants.WAITING_DRIVER_SCREEN,
+      allDriversNotified: true,
+      event: eventes.VIAJE_TOMADO,
+   }
+);
 const intervaloDeAviso = 10000; //10 segundos
 
 //para poder obtener el cuerpo de una petición POST
@@ -175,7 +186,7 @@ io.on("connection", (socket) => {
          // console.log(socket.id);
          // console.log("Cliente " + message.clientId + " - " + message.message);
       } catch (error) {
-         console.log("Error en recibo de paquete de socket", error);
+         console.log("ERROR en recibo de paquete de socket", error);
       }
    });
 });
@@ -200,7 +211,11 @@ server.listen(port, () => {
 });
 
 app.get("/ping", (req, resp) => {
-   resp.status(200).end();
+   try {
+      resp.status(200).end();
+   } catch (error) {
+      console.log("ERROR ping: ", error);
+   }
 });
 
 const getConfig = () => {
@@ -272,88 +287,103 @@ let chatMap = new Map();
 //------------CLIENTS---------------
 
 app.post("/isDoneRequest", (req, resp) => {
-   console.log("/isDoneRequest", req.body.idSolicitud);
-   // resp.send({ done: true });
-   // resp.status(200).end();
-   pool.query(
-      `SELECT done
+   try {
+      console.log("/isDoneRequest", req.body.idSolicitud);
+      // resp.send({ done: true });
+      // resp.status(200).end();
+      pool.query(
+         `SELECT done
         FROM ride
         WHERE "idCabRequest" = '${req.body.idSolicitud}'`,
-      (err, res) => {
-         if (err) {
-            resp.status(401).send({ message: "error on save ride" });
-            console.log(err);
-         } else {
-            if (!res.rows[0]) {
-               resp.send({ done: true });
-               resp.status(200).end();
-               return;
+         (err, res) => {
+            if (err) {
+               resp.status(401).send({ message: "error on save ride" });
+               console.log(err);
+            } else {
+               if (!res.rows[0]) {
+                  resp.send({ done: true });
+                  resp.status(200).end();
+                  return;
+               }
+               // resp.send({ done: true });
+               // resp.status(200).end();
+               // return;
+               resp.status(200).send(res.rows[0]).end();
             }
-            // resp.send({ done: true });
-            // resp.status(200).end();
-            // return;
-            resp.status(200).send(res.rows[0]).end();
          }
-      }
-   );
+      );
+   } catch (error) {
+      console.log("ERROR rate: ", error);
+   }
 });
 
 app.post("/setRideDone", (req, resp) => {
-   const { idSolicitud } = req.body;
-   console.log("/setRideDone", idSolicitud);
-   pool.query(
-      `UPDATE ride
+   try {
+      const { idSolicitud } = req.body;
+      console.log("/setRideDone", idSolicitud);
+      pool.query(
+         `UPDATE ride
       SET done = TRUE
       WHERE "idCabRequest" = '${idSolicitud}'`,
-      (err, res) => {
-         if (err) {
-            resp.status(401).send({ message: "error on save ride" });
-            console.log(err);
-         } else {
-            resp.sendStatus(200).end();
+         (err, res) => {
+            if (err) {
+               resp.status(401).send({ message: "error on save ride" });
+               console.log(err);
+            } else {
+               resp.sendStatus(200).end();
+            }
          }
-      }
-   );
+      );
+   } catch (error) {
+      console.log("ERROR rate: ", error);
+   }
 });
 
 app.post("/rate", (req, resp) => {
-   let clientType = req.headers["x-user-type"];
-   let toClientType;
-   if (clientType == "passenger") {
-      toClientType = "driver";
-   } else toClientType = "passenger";
+   try {
+      let clientType = req.headers["x-user-type"];
+      let toClientType;
+      if (clientType == "passenger") {
+         toClientType = "driver";
+      } else toClientType = "passenger";
 
-   const { idSolicitud, rating, comment } = req.body;
-   if (toClientType == "driver") {
-      pool.query(
-         `UPDATE ride
+      const { idSolicitud, rating, comment } = req.body;
+      console.log("/rate", idSolicitud, rating, comment);
+      if (toClientType == "driver") {
+         //soy passenger, puntuo driver
+         pool.query(
+            `UPDATE ride
             SET "ratingPassengerToDriver" = ${rating}
-            ${", commentPassengerToDriver = '" + comment + "'"}
-            WHERE "idCabRequest" = ${idSolicitud}`,
-         (err, res) => {
-            if (err) {
-               resp.status(401).send({ message: "error on save ride" });
-               console.log(err);
-            } else {
-               resp.sendStatus(200).end();
+            ${comment ? ", commentPassengerToDriver = '" + comment + "'" : ""}
+            WHERE "idCabRequest" = '${idSolicitud}'`,
+            (err, res) => {
+               if (err) {
+                  resp.status(401).send({ message: "error on save ride" });
+                  console.log(err);
+               } else {
+                  resp.sendStatus(200).end();
+               }
             }
-         }
-      );
-   } else if ((toClientType = "driver")) {
-      pool.query(
-         `UPDATE ride
+         );
+      } else {
+         //soy driver, puntuo passenger
+         pool.query(
+            `UPDATE ride
             SET "ratingDriverToPassenger" = ${rating}
-            ${", commentDriverToPassenfer = '" + comment + "'"}
-            WHERE "idCabRequest" = ${idSolicitud}`,
-         (err, res) => {
-            if (err) {
-               resp.status(401).send({ message: "error on save ride" });
-               console.log(err);
-            } else {
-               resp.sendStatus(200).end();
+            ${comment ? ", commentDriverToPassenger = '" + comment + "'" : ""}
+            WHERE "idCabRequest" = '${idSolicitud}'`,
+            (err, res) => {
+               if (err) {
+                  resp.status(401).send({ message: "error on save ride" });
+                  console.log(err);
+               } else {
+                  resp.sendStatus(200).end();
+               }
             }
-         }
-      );
+         );
+      }
+   } catch (error) {
+      console.log("ERROR rate: ", error);
    }
 });
 
@@ -449,36 +479,44 @@ app.post("/logIn", (req, res) => {
          }
       );
    } catch (error) {
-      console.log("LogIn", error);
+      console.log("ERROR LogIn: ", error);
    }
 });
 
 app.post("/saveRide", async (req, resp) => {
-   console.log("/saveRide");
-   const { latitude, longitude, driverUsername, passengerUsername, idSolicitud } = req.body;
-   //idSolicitudDriverPasengerMap.set(idSolicitud)={clientAdress:{ip:null, port:null}}
-   idSolicitudDriverIdPassengerId.set(idSolicitud, { passengerId: passengerUsername, driverId: driverUsername });
-   console.log("/saveRide", driverUsername, passengerUsername, latitude, longitude, idSolicitud);
-   pool.query(
-      `INSERT INTO ride(idCabRequest, driverId, passengerId, latitude, longitude)
+   try {
+      console.log("/saveRide");
+      const { latitude, longitude, driverUsername, passengerUsername, idSolicitud } = req.body;
+      //idSolicitudDriverPasengerMap.set(idSolicitud)={clientAdress:{ip:null, port:null}}
+      idSolicitudDriverIdPassengerId.set(idSolicitud, { passengerId: passengerUsername, driverId: driverUsername });
+      console.log("/saveRide", driverUsername, passengerUsername, latitude, longitude, idSolicitud);
+      pool.query(
+         `INSERT INTO ride(idCabRequest, driverId, passengerId, latitude, longitude)
         VALUES (${idSolicitud}, ${driverUsername}, ${passengerUsername}, ${latitude}, ${longitude})`,
-      (err, res) => {
-         if (err) {
-            resp.status(401).send({ message: "error on save ride" });
-            console.log(err);
-         } else {
-            resp.sendStatus(200).end();
+         (err, res) => {
+            if (err) {
+               resp.status(401).send({ message: "error on save ride" });
+               console.log(err);
+            } else {
+               resp.sendStatus(200).end();
+            }
          }
-      }
-   );
+      );
+   } catch (error) {
+      console.log("ERROR end saveRide");
+   }
 });
 
 app.post("/setPushNotificationToken", async (req, resp) => {
-   const username = req.header("x-user-id");
-   const { token } = req.body;
-   console.log("setPushNotificationToken", username, token);
-   await setPushNotificationToken(username, token);
-   resp.sendStatus(200).end();
+   try {
+      const username = req.header("x-user-id");
+      const { token } = req.body;
+      console.log("setPushNotificationToken", username, token);
+      await setPushNotificationToken(username, token);
+      resp.sendStatus(200).end();
+   } catch (error) {
+      console.log("ERROR end setPushNotificationToken");
+   }
 });
 
 const setPushNotificationToken = (username, token) => {
@@ -577,8 +615,12 @@ app.post("/sendMessage", async (req, res) => {
 // });
 
 app.post("/getChat", async (req, res) => {
-   const resChat = await utils.getChat(pool, req.body.idSolicitud);
-   res.send(JSON.parse(resChat.chat)).end();
+   try {
+      const resChat = await utils.getChat(pool, req.body.idSolicitud);
+      res.send(JSON.parse(resChat.chat)).end();
+   } catch (error) {
+      console.log("Error getChat: ", error);
+   }
 });
 
 const limpioDatosDeSolicitud = (idSolicitud, clearRequestMap = true) => {
@@ -597,7 +639,7 @@ const limpioDatosDeSolicitud = (idSolicitud, clearRequestMap = true) => {
       //Le avise a todos los choferes, avisar al usuario
       console.log("limpioDatosDeSolicitud", idSolicitudInterval.get(idSolicitud), idSolicitud);
    } catch (error) {
-      console.log(error);
+      console.log("Error limpioDatosDeSolicitud: ", error);
    }
 };
 
@@ -609,15 +651,24 @@ const handleNotificationDriverState = (driverId) => {
 //------------PASSENGERS---------------
 
 app.post("/getChoferPosition", (req, res) => {
-   const username = req.body.username;
-   console.log("/getChoferPosition", username);
-   const location = choferesDisponibles.get(username);
-   res.status(200).send(location).end();
+   try {
+      const username = req.body.username;
+      console.log("/getChoferPosition", username);
+      const location = choferesDisponibles.get(username);
+      res.status(200).send(location).end();
+   } catch (error) {
+      console.log("Error getChoferPosition: ", error);
+   }
 });
 
 app.post("/YuberRequest", async (req, res) => {
    try {
       const passengerUsername = req.header("x-user-id");
+
+      var passengerClient;
+      await utils.getClient(pool, passengerUsername).then((e) => {
+         passengerClient = e;
+      });
 
       const date = new Date();
       let idSolicitud =
@@ -641,6 +692,7 @@ app.post("/YuberRequest", async (req, res) => {
          passengerUsername: passengerUsername,
          requestTime: requestTime,
          iterador: 0,
+         name: passengerClient.name,
       };
       //let resData = getArrayFromMap(choferesDisponibles);
       let resData;
@@ -683,7 +735,7 @@ app.post("/YuberRequest", async (req, res) => {
 
       res.status(200).send({ idSolicitud }).end();
    } catch (error) {
-      console.log(error);
+      console.log("Error YuberRequest: ", error);
    }
 });
 
@@ -797,49 +849,53 @@ const avisarConductores = async (
 };
 
 //Passenger accepta
-app.post("/clientAccept", (req, resp) => {
-   let idSolicitud = req.body.idSolicitud;
-   const requestData = waitingPassengerAcceptData.get(idSolicitud);
-   const passengerToken = yuberRequestData.get(idSolicitud).passengerToken;
+app.post("/", (req, resp) => {
+   try {
+      let idSolicitud = req.body.idSolicitud;
+      const requestData = waitingPassengerAcceptData.get(idSolicitud);
+      const passengerToken = yuberRequestData.get(idSolicitud).passengerToken;
 
-   utils.setEnViaje(pool, requestData.choferUsername);
+      utils.setEnViaje(pool, requestData.choferUsername);
 
-   pool.query(
-      `SELECT token
+      pool.query(
+         `SELECT token
             FROM Client  
             WHERE "clientId" = ${requestData.choferUsername} `,
-      (err, res) => {
-         if (err) {
-            console.log(err);
-         } else {
-            pool.query(
-               `INSERT INTO ride("idCabRequest", "driverId", "passengerId", latitude, longitude, timejs)
+         (err, res) => {
+            if (err) {
+               console.log(err);
+            } else {
+               pool.query(
+                  `INSERT INTO ride("idCabRequest", "driverId", "passengerId", latitude, longitude, timejs)
                 VALUES (${requestData.idCabRequest}, ${requestData.choferUsername}, ${requestData.passengerUsername}, ${
-                  requestData.startLatitude
-               }, ${requestData.startLongitude}, '${new Date()}') `,
-               (err, res) => {
-                  if (err) {
-                     console.log(err);
-                  } else {
+                     requestData.startLatitude
+                  }, ${requestData.startLongitude}, '${new Date()}') `,
+                  (err, res) => {
+                     if (err) {
+                        console.log(err);
+                     } else {
+                     }
                   }
-               }
-            );
-            const data = waitingPassengerAcceptData.get(idSolicitud);
-            const driverToken = res.rows[0].token;
-            rideInProgressData.set(idSolicitud, { ...data, driverToken });
-            waitingPassengerAcceptData.delete(idSolicitud);
-            chatMap.set(idSolicitud, { chat: [], tokens: { passengerToken, driverToken: driverToken } });
+               );
+               const data = waitingPassengerAcceptData.get(idSolicitud);
+               const driverToken = res.rows[0].token;
+               rideInProgressData.set(idSolicitud, { ...data, driverToken });
+               waitingPassengerAcceptData.delete(idSolicitud);
+               chatMap.set(idSolicitud, { chat: [], tokens: { passengerToken, driverToken: driverToken } });
 
-            sendPushNotification(driverToken, "", {
-               screen: constants.DRIVER_SCREEN,
-               idSolicitud,
-               done: true,
-               requestData,
-            });
-            resp.status(200).end();
+               sendPushNotification(driverToken, "", {
+                  screen: constants.DRIVER_SCREEN,
+                  idSolicitud,
+                  done: true,
+                  requestData,
+               });
+               resp.status(200).end();
+            }
          }
-      }
-   );
+      );
+   } catch (error) {
+      console.log("Error startYuber: ", error);
+   }
    // driverPassengerChatTokens.set(idSolicitud, {
    //    passengerToken,
    //    driverToken: driverToken,
@@ -883,103 +939,127 @@ app.post("/clientAccept", (req, resp) => {
 //------------DRIVERS---------------
 
 app.post("/startYuber", (req, res) => {
-   const username = req.header("x-user-id");
-   console.log("/startYuber", username);
-   utils.setTrabajando(pool, username, true);
-   res.status(200).end();
+   try {
+      const username = req.header("x-user-id");
+      console.log("/startYuber", username);
+      utils.setTrabajando(pool, username, true);
+      res.status(200).end();
+   } catch (error) {
+      console.log("Error startYuber: ", error);
+   }
 });
 
 app.post("/setCar", (req, res) => {
-   const username = req.header("x-user-id");
-   const { carId } = req.body;
-   console.log("/setCar", carId, username);
-   utils.setCar(pool, username, carId);
-   res.status(200).end();
+   try {
+      const username = req.header("x-user-id");
+      const { carId } = req.body;
+      console.log("/setCar", carId, username);
+      utils.setCar(pool, username, carId);
+      res.status(200).end();
+   } catch (error) {
+      console.log("Error setCar: ", error);
+   }
 });
 
 app.put("/newCar", async (req, res) => {
-   console.log("/newCar");
-   const username = req.header("x-user-id");
-   const { plateNumber, colour, model, brand, typeColour } = req.body;
+   try {
+      console.log("/newCar");
+      const username = req.header("x-user-id");
+      const { plateNumber, colour, model, brand, typeColour } = req.body;
 
-   const result1 = await pool.query(
-      `
+      const result1 = await pool.query(
+         `
       INSERT INTO car ("plateNumber", colour, model, brand, "typeColour", "driverId")
       VALUES ('${plateNumber}', '${colour}', '${model}', '${brand}', '${typeColour}', ${username})
       RETURNING *`
-   );
+      );
 
-   pool.query(
-      `
+      pool.query(
+         `
          UPDATE driver
          SET "carId" = ${result1.rows[0].carId}, "activeCar" = ${result1.rows[0].carId}
          where "driverId" = ${username};
          `
-   );
+      );
 
-   res.json(result1.rows[0]).status(200).end();
+      res.json(result1.rows[0]).status(200).end();
+   } catch (error) {
+      console.log("Error newCar: ", error);
+   }
 });
 
 app.post("/deleteCar", (req, res) => {
-   const { carId } = req.body;
-   console.log("deleteCar: ", carId);
-   pool.query(`DELETE FROM car
+   try {
+      const { carId } = req.body;
+      console.log("deleteCar: ", carId);
+      pool.query(`DELETE FROM car
          WHERE "carId" = ${carId};`);
-   res.status(200).end();
+      res.status(200).end();
+   } catch (error) {
+      console.log("Error deleteCar: ", error);
+   }
 });
 
 app.post("/stopYuber", (req, res) => {
-   const username = req.header("x-user-id");
-   console.log("/stopYuber", username);
-   utils.setTrabajando(pool, username, false);
-   res.status(200).end();
+   try {
+      const username = req.header("x-user-id");
+      console.log("/stopYuber", username);
+      utils.setTrabajando(pool, username, false);
+      res.status(200).end();
+   } catch (error) {
+      console.log("Error stopYuber: ", error);
+   }
 });
 
 //chofer Acepta
 app.post("/acceptCabRequests", (req, resp) => {
-   const username = req.header("x-user-id");
-   const { idSolicitud, choferLocation } = req.body;
-   const requestData = yuberRequestData.get(idSolicitud);
-   const passengerToken = requestData.passengerToken;
-   const startLatitude = requestData.startLatitude;
-   const startLongitude = requestData.startLongitude;
-   waitingPassengerAcceptData.set(idSolicitud, { ...requestData, choferUsername: username, choferLocation });
-   limpioDatosDeSolicitud(idSolicitud, false);
+   try {
+      const username = req.header("x-user-id");
+      const { idSolicitud, choferLocation } = req.body;
+      const requestData = yuberRequestData.get(idSolicitud);
+      const passengerToken = requestData.passengerToken;
+      const startLatitude = requestData.startLatitude;
+      const startLongitude = requestData.startLongitude;
+      waitingPassengerAcceptData.set(idSolicitud, { ...requestData, choferUsername: username, choferLocation });
+      limpioDatosDeSolicitud(idSolicitud, false);
 
-   pool.query(
-      `SELECT *
+      pool.query(
+         `SELECT *
         FROM client FULL JOIN driver ON client."clientId" = driver."driverId" FULL JOIN car ON driver."activeCar" = car."carId"
         WHERE "clientId" = ${username} `,
-      (err, res) => {
-         if (err) {
-            console.log("Error signIn DB");
-            console.log(err);
-         } else {
-            try {
-               sendPushNotification(passengerToken, "", {
-                  screen: constants.WAITING_DRIVER_SCREEN,
-                  ...res.rows[0],
-                  aceptado: true,
-                  idSolicitud,
-                  driverUserName: username,
-                  idChoferAccepted: username,
-                  choferLatitude: choferLocation.latitude,
-                  choferLongitude: choferLocation.longitude,
-                  requestLongitude: startLongitude,
-                  requestLatitude: startLatitude,
-               });
-               resp.status(200).end();
-               return;
-               //resp.status(200).send({ clientType: result.clienttype });
-            } catch (error) {
-               console.log(error);
-               //resp.status(401).send({ message: 'invalid email' });
+         (err, res) => {
+            if (err) {
+               console.log("Error signIn DB");
+               console.log(err);
+            } else {
+               try {
+                  sendPushNotification(passengerToken, "", {
+                     screen: constants.WAITING_DRIVER_SCREEN,
+                     ...res.rows[0],
+                     aceptado: true,
+                     idSolicitud,
+                     driverUserName: username,
+                     idChoferAccepted: username,
+                     choferLatitude: choferLocation.latitude,
+                     choferLongitude: choferLocation.longitude,
+                     startLongitude,
+                     startLatitude,
+                  });
+                  resp.status(200).end();
+                  return;
+                  //resp.status(200).send({ clientType: result.clienttype });
+               } catch (error) {
+                  console.log(error);
+                  //resp.status(401).send({ message: 'invalid email' });
+               }
             }
          }
-      }
-   );
+      );
 
-   resp.status(200).end();
+      resp.status(200).end();
+   } catch (error) {
+      console.log("Error acceptCabRequests: ", error);
+   }
    return;
    //choferesDisponibles.get(myUsername).ocupado = true;
    choferesDisponibles.get(passengerUsername).latitude = req.body.latitude;
@@ -1027,8 +1107,8 @@ app.post("/acceptCabRequests", (req, resp) => {
                   idChoferAccepted: myUsername,
                   choferLatitude,
                   choferLongitude,
-                  requestLongitude: yuberRequestsAcceptedData.get(idCabRequest).startLongitude,
-                  requestLatitude: yuberRequestsAcceptedData.get(idCabRequest).startLatitude,
+                  startLongitude: yuberRequestsAcceptedData.get(idCabRequest).startLongitude,
+                  startLatitude: yuberRequestsAcceptedData.get(idCabRequest).startLatitude,
                });
                //resp.status(200).send({ clientType: result.clienttype });
             } catch (error) {
@@ -1043,15 +1123,19 @@ app.post("/acceptCabRequests", (req, resp) => {
 });
 
 app.post("/send-position", (req, res) => {
-   //console.log(myYuberId, req.body.latitude, req.body.longitude);
-   const username = req.header("x-user-id");
+   try {
+      //console.log(myYuberId, req.body.latitude, req.body.longitude);
+      const username = req.header("x-user-id");
 
-   console.log("/send-position");
-   const { latitude, longitude } = req.body;
+      console.log("/send-position");
+      const { latitude, longitude } = req.body;
 
-   console.log("/send-position", username, latitude, longitude);
-   updateDriverLocation({ username, latitude, longitude });
-   res.sendStatus(200).end();
+      console.log("/send-position", username, latitude, longitude);
+      updateDriverLocation({ username, latitude, longitude });
+      res.sendStatus(200).end();
+   } catch (error) {
+      console.log("Error send-position: ", error);
+   }
 });
 
 const updateDriverLocation = ({ username, latitude, longitude }) => {
@@ -1062,36 +1146,122 @@ const updateDriverLocation = ({ username, latitude, longitude }) => {
 //---------
 
 app.get("/getRides/:from/:to", (req, resp) => {
-   const { from, to } = req.params;
-   const username = req.header("x-user-id");
-   console.log("getRides", username, from, to);
-   pool.query(
-      `SELECT date, paid, latitude, longitude, "idCabRequest"
+   try {
+      const { from, to } = req.params;
+      const username = req.header("x-user-id");
+      console.log("getRides", username, from, to);
+      pool.query(
+         `SELECT date, paid, latitude, longitude, "idCabRequest"
         FROM ride
         WHERE "driverId" = '${username}' OR "passengerId" = '${username}'
         ORDER BY date DESC`,
-      (err, res) => {
-         if (err) {
-            console.log("Error - Failed to select all from Users");
-            console.log(err);
-         } else {
-            try {
-               let paid = 0;
-               let whithoutPaying = 0;
-               res.rows.map((ride) => {
-                  ride.paid ? paid++ : whithoutPaying++;
-               });
-               const result = {};
-               result.rides = res.rows.slice(from, to);
-               result.paid = paid;
-               result.totalRides = res.rows.length;
-               result.whithoutPaying = whithoutPaying;
-               resp.send(result);
-               resp.status(200).end();
-            } catch (error) {
-               resp.status(401).send({ message: "invalid email" });
+         (err, res) => {
+            if (err) {
+               console.log("Error - Failed to select all from Users");
+               console.log(err);
+            } else {
+               try {
+                  let paid = 0;
+                  let whithoutPaying = 0;
+                  res.rows.map((ride) => {
+                     ride.paid ? paid++ : whithoutPaying++;
+                  });
+                  const result = {};
+                  result.rides = res.rows.slice(from, to);
+                  result.paid = paid;
+                  result.totalRides = res.rows.length;
+                  result.whithoutPaying = whithoutPaying;
+                  resp.send(result);
+                  resp.status(200).end();
+               } catch (error) {
+                  resp.status(401).send({ message: "invalid email" });
+               }
             }
          }
-      }
-   );
+      );
+   } catch (error) {
+      console.log("Error getRides: ", error);
+   }
+});
+
+app.get("/getSettings", (req, resp) => {
+   try {
+      const username = req.header("x-user-id");
+      console.log("getSettings :", username);
+      pool.query(
+         `SELECT *
+      FROM usersetting us LEFT JOIN setting s on (us."idSetting" = s."idSetting")
+      WHERE "clientId" = '${username}'`,
+         (err, res) => {
+            if (err) {
+               console.log("Error - Failed to select all from Users");
+               console.log(err);
+            } else {
+               try {
+                  resp.send(res.rows);
+                  resp.status(200).end();
+               } catch (error) {
+                  resp.status(401).send({ message: "invalid email" });
+               }
+            }
+         }
+      );
+   } catch (error) {
+      console.log("Error getSettings: ", error);
+   }
+});
+
+app.get("/getHelp", (req, resp) => {
+   try {
+      const username = req.header("x-user-id");
+      console.log("getSettings :", username);
+      pool.query(
+         `SELECT *
+      FROM help`,
+         (err, res) => {
+            if (err) {
+               console.log("Error - Failed to select all from Users");
+               console.log(err);
+            } else {
+               try {
+                  resp.send(res.rows);
+                  resp.status(200).end();
+               } catch (error) {
+                  resp.status(401).send({ message: "invalid email" });
+               }
+            }
+         }
+      );
+   } catch (error) {
+      console.log("Error getHelp: ", error);
+   }
+});
+
+app.post("/editSettings", (req, res) => {
+   try {
+      //console.log(myYuberId, req.body.latitude, req.body.longitude);
+      const username = req.header("x-user-id");
+      const { userSettings } = req.body;
+
+      console.log(userSettings);
+
+      userSettings.forEach((us) => utils.setUserSettings(pool, us.idUserSetting, us.value));
+
+      res.sendStatus(200).end();
+   } catch (error) {
+      console.log("Error send-position: ", error);
+   }
+});
+
+app.get("/getUserSettings", async (req, res) => {
+   try {
+      const username = req.header("x-user-id");
+      console.log("getUserSettings", username);
+
+      const userSettings = await utils.getUserSettings(pool, username);
+
+      res.send(userSettings).end();
+   } catch (error) {
+      console.log("Error send-position: ", error);
+   }
 });

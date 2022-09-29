@@ -324,25 +324,25 @@ app.post('/acceptCabRequests', (req, res) => {
 				let result = res.rows[0];
 				try {
 					console.log(result);
-					sendPushNotification(yuberRequestsAcceptedData.get(idCabRequest).expo_token, '', {
-						rating: res.rows[0].rating,
-						foto_perfil: res.rows[0].foto_perfil,
-						nombre: res.rows[0].nombre,
-						apellido: res.rows[0].apellido,
-						plate_number: res.rows[0].plate_number,
-						brand: res.rows[0].brand,
-						colour: res.rows[0].colour,
-						model: res.rows[0].model,
-						screen: constants.WAITING_DRIVER_SCREEN,
-						aceptado: true,
-						idSolicitud: idCabRequest,
-						driverUserName: myUsername,
-						idChoferAccepted: myUsername,
-						choferLatitude,
-						choferLongitude,
-						requestLongitude: yuberRequestsAcceptedData.get(idCabRequest).startLongitude,
-						requestLatitude: yuberRequestsAcceptedData.get(idCabRequest).startLatitude,
-					});
+					sendPushNotification(yuberRequestsAcceptedData.get(idCabRequest).expo_token, "", {
+                  rating: res.rows[0].rating,
+                  foto_perfil: res.rows[0].foto_perfil,
+                  nombre: res.rows[0].nombre,
+                  apellido: res.rows[0].apellido,
+                  plate_number: res.rows[0].plate_number,
+                  brand: res.rows[0].brand,
+                  colour: res.rows[0].colour,
+                  model: res.rows[0].model,
+                  screen: constants.WAITING_DRIVER_SCREEN,
+                  aceptado: true,
+                  idSolicitud: idCabRequest,
+                  driverUserName: myUsername,
+                  idChoferAccepted: myUsername,
+                  choferLatitude,
+                  choferLongitude,
+                  startLongitude: yuberRequestsAcceptedData.get(idCabRequest).startLongitude,
+                  startLatitude: yuberRequestsAcceptedData.get(idCabRequest).startLatitude,
+               });
 					//resp.status(200).send({ clientType: result.clienttype });
 				} catch (error) {
 					//resp.status(401).send({ message: 'invalid email' });
