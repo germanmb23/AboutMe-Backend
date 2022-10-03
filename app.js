@@ -23,17 +23,20 @@ const auth = require("./middleware/auth");
 
 const sendPushNotification = sendFirebaseNotification;
 
-const eventes = { VIAJE_TOMADO: 1 };
+const events = { NUEVO_VIAJE: 1, VIAJE_TOMADO: 2, VIAJE_FIN_TIEMPO_ACEPTACION: 3 };
 
 sendPushNotification(
-   "cEAlxghRQRi8Q2Jth30nvu:APA91bEy-96g9z9iP7w8UxV1Rsmt-wDioD3_cuNvvvPIFy-eXpvVyYwCwIPLBTAcATWDAHWm5i48xXPZ1g9xTroOwupevJVvZUQqMQYdEG9Jq_DikcHC5CxULZcaRwLXji2jQRUApBYm",
-   "",
+   "fx1vpjFNQ0ePET_jOGBZT7:APA91bF_iUsI3iVWUwyG0jiz2N9EgwL5aLT_1hgSUMc3giioFNn4KFWE1hUyd2Nt0DYIP5l1-6i2QMhFfzOoVLT9iWH4azcYFdHLj6nomvZRPSXzoJM2GiiEQdCsxsNor27KwTXgc4LI",
    {
-      screen: constants.WAITING_DRIVER_SCREEN,
-      allDriversNotified: true,
-      event: eventes.VIAJE_TOMADO,
-   }
+      event: events.NUEVO_VIAJE,
+      cabRequest: {
+         requestTime: new Date(),
+      },
+   },
+   "Viaje disponible",
+   "Presiona para aceptar, desliza para cancelar"
 );
+
 const intervaloDeAviso = 10000; //10 segundos
 
 //para poder obtener el cuerpo de una petición POST
@@ -41,7 +44,7 @@ app.use(express.json());
 app.use(bodyParser.json());
 app.use(cors());
 const idSolicitudDriverPasengerMap = new Map();
-
+const TIEMPO_DE_ESPERA_SOLICITUD = 10000;
 //----------------TCP SOCKET---------------
 const http = require("http");
 const { Server } = require("socket.io");
@@ -286,6 +289,7 @@ let chatMap = new Map();
 
 //------------CLIENTS---------------
 
+var idNotificacionRequest;
 app.post("/isDoneRequest", (req, resp) => {
    try {
       console.log("/isDoneRequest", req.body.idSolicitud);
@@ -563,7 +567,6 @@ app.post("/sendMessage", async (req, res) => {
       if (destToken) {
          sendPushNotification(
             destToken,
-            "",
             { screen: constants.CHAT_SCREEN, messageData },
             "Mensaje del conductor",
             messageData.message
@@ -670,14 +673,17 @@ app.post("/YuberRequest", async (req, res) => {
          passengerClient = e;
       });
 
-      const date = new Date();
-      let idSolicitud =
-         date.getMonth().toString() +
-         date.getDay().toString() +
-         date.getHours().toString() +
-         date.getMinutes().toString() +
-         date.getSeconds().toString() +
-         date.getMilliseconds().toString();
+      const responseQuery = await utils.createRide(pool, passengerUsername);
+
+      const idSolicitud = responseQuery.idCabRequest;
+      //const date = new Date();
+      // let idSolicitud =
+      //    date.getMonth().toString() +
+      //    date.getDay().toString() +
+      //    date.getHours().toString() +
+      //    date.getMinutes().toString() +
+      //    date.getSeconds().toString() +
+      //    date.getMilliseconds().toString();
 
       console.log("/YuberRequest", idSolicitud);
 
@@ -700,7 +706,6 @@ app.post("/YuberRequest", async (req, res) => {
       await utils.getChoferesDisponibles(pool).then((e) => {
          resData = e;
       });
-      console.log("new req", resData.length);
 
       // if (resData.length == 0) {
       // 	sendPushNotification(req.body.myExpoToken, '', {
@@ -723,15 +728,81 @@ app.post("/YuberRequest", async (req, res) => {
       //     }
       // });
 
-      const interval = setInterval(
-         () =>
-            avisarConductores(passengerUsername, idSolicitud, resData.length, latitude, longitude, token, requestTime),
-         intervaloDeAviso
-      );
+      const notificationRes = await utils.createNotification(pool, idSolicitud);
 
-      avisarConductores(passengerUsername, idSolicitud, resData.length, latitude, longitude, token, requestTime);
+      idNotificacionRequest = notificationRes?.idNotification;
+      console.log("Conductores");
+      resData.map((a) => console.log(a.driverId));
+      resData.forEach((u) => {
+         if (u.token) {
+            sendPushNotification(
+               u.token,
+               {
+                  screen: constants.DRIVER_SCREEN,
+                  navigateTo: constants.DRIVER_SCREEN,
+                  event: events.NUEVO_VIAJE,
+                  cabRequest: {
+                     latitude,
+                     longitude,
+                     idSolicitud,
+                     passengerUsername,
+                     requestTime,
+                  },
+               },
+               "Nuevo viaje disponible"
+            );
+         }
 
-      idSolicitudInterval.set(idSolicitud, interval);
+         utils.createSentNotification(pool, notificationRes?.idNotification, u.clientId);
+      });
+
+      setTimeout(async () => {
+         const rideRes = await utils.getRide(pool, idSolicitud);
+         //Si todavia no fue agarrado le notifico a los conductores y al cliente del suceso, en caso contrario ya notifique al momento de tomarlo
+         if (!rideRes.driverId) {
+            const passenger = await utils.getClient(pool, passengerUsername);
+
+            if (passenger.token) {
+               sendPushNotification(
+                  passenger.token,
+                  {
+                     screen: constants.WAITING_DRIVER_SCREEN,
+                     allDriversNotified: true,
+                  },
+                  "En este momento no hay conductores "
+               );
+            } else {
+               console.log("ERROR: pasajero sin token al intentar enviar la notificacion");
+            }
+
+            //Si tiene driver id ya notifique cuando se agarro
+            const sentNotifications = await utils.getSentNotification(pool, notificationRes?.idNotification);
+
+            sentNotifications.forEach((n) => {
+               if (n.token) {
+                  sendPushNotification(
+                     n.token,
+                     { event: events.VIAJE_FIN_TIEMPO_ACEPTACION },
+                     "Te perdiste un viaje 1",
+                     null,
+                     ""
+                  );
+               } else {
+                  console.log("ERROR: conductor sin token al intentar enviar la notificacion");
+               }
+            });
+         }
+      }, TIEMPO_DE_ESPERA_SOLICITUD);
+
+      // const interval = setInterval(
+      //    () =>
+      //       avisarConductores(passengerUsername, idSolicitud, resData.length, latitude, longitude, token, requestTime),
+      //    intervaloDeAviso
+      // );
+
+      // avisarConductores(passengerUsername, idSolicitud, resData.length, latitude, longitude, token, requestTime);
+
+      // idSolicitudInterval.set(idSolicitud, interval);
 
       res.status(200).send({ idSolicitud }).end();
    } catch (error) {
@@ -754,7 +825,7 @@ const avisarConductores = async (
       let passengerToken = requestData ? yuberRequestData.get(idSolicitud).passengerToken : null;
 
       if (iterador == null || cantChoferes == 0 || iterador > cantChoferes - 1) {
-         sendPushNotification(passengerToken, "", {
+         sendPushNotification(passengerToken, {
             screen: constants.WAITING_DRIVER_SCREEN,
             allDriversNotified: true,
          });
@@ -772,7 +843,6 @@ const avisarConductores = async (
 
             sendPushNotification(
                arrayChoferes.get(idSolicitud)[iterador].token,
-               "Viaje disponibles",
                {
                   screen: constants.DRIVER_SCREEN,
                   navigateTo: constants.DRIVER_SCREEN,
@@ -806,7 +876,7 @@ const avisarConductores = async (
       }
 
       limpioDatosDeSolicitud(idSolicitud);
-      sendPushNotification(passengerToken, "", { screen: constants.WAITING_DRIVER_SCREEN, allDriversNotified: true });
+      sendPushNotification(passengerToken, { screen: constants.WAITING_DRIVER_SCREEN, allDriversNotified: true });
       return;
    } catch (error) {
       console.log("\n\n", error, "\n\n");
@@ -883,7 +953,7 @@ app.post("/", (req, resp) => {
                waitingPassengerAcceptData.delete(idSolicitud);
                chatMap.set(idSolicitud, { chat: [], tokens: { passengerToken, driverToken: driverToken } });
 
-               sendPushNotification(driverToken, "", {
+               sendPushNotification(driverToken, {
                   screen: constants.DRIVER_SCREEN,
                   idSolicitud,
                   done: true,
@@ -1012,7 +1082,7 @@ app.post("/stopYuber", (req, res) => {
 });
 
 //chofer Acepta
-app.post("/acceptCabRequests", (req, resp) => {
+app.post("/acceptCabRequests", async (req, resp) => {
    try {
       const username = req.header("x-user-id");
       const { idSolicitud, choferLocation } = req.body;
@@ -1022,6 +1092,22 @@ app.post("/acceptCabRequests", (req, resp) => {
       const startLongitude = requestData.startLongitude;
       waitingPassengerAcceptData.set(idSolicitud, { ...requestData, choferUsername: username, choferLocation });
       limpioDatosDeSolicitud(idSolicitud, false);
+
+      const sentNotifications = await utils.getSentNotification(pool, idNotificacionRequest);
+
+      sentNotifications.forEach((n) => {
+         if (n.token && n.clientId != username) {
+            sendPushNotification(
+               n.token,
+               { event: events.VIAJE_FIN_TIEMPO_ACEPTACION },
+               "Te perdiste un viaje 1",
+               null,
+               ""
+            );
+         } else {
+            console.log("ERROR: conductor sin token al intentar enviar la notificacion");
+         }
+      });
 
       pool.query(
          `SELECT *
@@ -1033,7 +1119,7 @@ app.post("/acceptCabRequests", (req, resp) => {
                console.log(err);
             } else {
                try {
-                  sendPushNotification(passengerToken, "", {
+                  sendPushNotification(passengerToken, {
                      screen: constants.WAITING_DRIVER_SCREEN,
                      ...res.rows[0],
                      aceptado: true,
@@ -1243,13 +1329,11 @@ app.post("/editSettings", (req, res) => {
       const username = req.header("x-user-id");
       const { userSettings } = req.body;
 
-      console.log(userSettings);
-
       userSettings.forEach((us) => utils.setUserSettings(pool, us.idUserSetting, us.value));
 
       res.sendStatus(200).end();
    } catch (error) {
-      console.log("Error send-position: ", error);
+      console.log("Error editSettings: ", error);
    }
 });
 
@@ -1262,6 +1346,6 @@ app.get("/getUserSettings", async (req, res) => {
 
       res.send(userSettings).end();
    } catch (error) {
-      console.log("Error send-position: ", error);
+      console.log("Error getUserSettings: ", error);
    }
 });

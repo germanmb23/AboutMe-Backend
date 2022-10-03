@@ -81,24 +81,43 @@ CREATE TABLE Passenger(
 );
 
 CREATE TABLE Ride(
-    rideId INT GENERATED ALWAYS AS IDENTITY,
-	  idCabRequest TEXT UNIQUE, 
+    -- rideId INT GENERATED ALWAYS AS IDENTITY,
+	  "idCabRequest" INT GENERATED ALWAYS AS IDENTITY, 
   	paid BOOLEAN DEFAULT false,
   	chat TEXT,
-    driverId INT,
-    passengerId INT,
+    "driverId" INT,
+    "passengerId" INT,
     date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    ratingPassengerToDriver INT DEFAULT 0,
-    ratingDriverToPassenger INT DEFAULT 0,
-    commentPassengerToDriver TEXT,  
-    commentDriverToPassenger TEXT,
+    "ratingPassengerToDriver" INT,
+    "ratingDriverToPassenger" INT,
+    "commentPassengerToDriver" TEXT,  
+    "commentDriverToPassenger" TEXT,
     latitude FLOAT,
     longitude FLOAT,
     done BOOLEAN DEFAULT false,
-    PRIMARY KEY(idCabRequest),
-    FOREIGN KEY(driverId) REFERENCES Driver(driverId),
-  	FOREIGN KEY(passengerId) REFERENCES Passenger(passengerId)
+    PRIMARY KEY("idCabRequest"),
+    -- PRIMARY KEY(idCabRequest),
+    FOREIGN KEY("driverId") REFERENCES Driver("driverId"),
+  	FOREIGN KEY("passengerId") REFERENCES Passenger("passengerId")
 );
+
+CREATE TABLE Notification(
+    -- rideId INT GENERATED ALWAYS AS IDENTITY,
+	  "idNotification" INT GENERATED ALWAYS AS IDENTITY,
+    "idCabRequest" INT,
+    PRIMARY KEY("idNotification"),
+    FOREIGN KEY("idCabRequest") REFERENCES Ride("idCabRequest")
+  );
+
+CREATE TABLE SentNotification(
+    -- rideId INT GENERATED ALWAYS AS IDENTITY,
+	  "idSentNotification" INT GENERATED ALWAYS AS IDENTITY,
+	  "idNotification" INT,
+    "clientId"  INT,
+    PRIMARY KEY("idSentNotification"),
+    FOREIGN KEY("idNotification") REFERENCES Notification("idNotification"),
+    FOREIGN KEY("clientId") REFERENCES Client("clientId")
+  );
 
 
 CREATE TABLE Config(
@@ -114,50 +133,91 @@ INSERT INTO Rol (meaning) values ('driver');
 --Pasajeros
 --pasajero1
 WITH new_client AS (
-  INSERT INTO Client (rolId, nombre, apellido, phone)
-  values (1, 'German','Moreira', 0)
-  returning clientId
+  INSERT INTO Client ("rolId", name, surname, phone)
+  values (1, 'German','Moreira', 1)
+  returning "clientId"
 )
-INSERT INTO Passenger(passengerId) values ((select clientId from new_client));
+INSERT INTO Passenger("passengerId") values ((select "clientId" from new_client));
 
 --pasajero2
 WITH new_client AS (
-  INSERT INTO Client (rolId, nombre, apellido, phone)
-  values (1, 'Martin','Gomez', 1)
-  returning clientId
+  INSERT INTO Client ("rolId", name, surname, phone)
+  values (1, 'Martin','Gomez', 2)
+  returning "clientId"
 )
-INSERT INTO Passenger(passengerId) values ((select clientId from new_client));
+INSERT INTO Passenger("passengerId") values ((select "clientId" from new_client));
 
 --Choferes
---Chofer 1
-WITH new_client AS (
-  INSERT INTO Client (rolId, nombre, apellido, phone)
-  VALUES (2, 'Cholo','Rodriguez', 4)
-  returning clientId
-)
-INSERT INTO driver(driverId, address, fotoPerfil) values ((select clientId from new_client),'Berro 1116','https://us.123rf.com/450wm/marctran/marctran1906/marctran190600935/125688059-sonriente-hombre-asi%C3%A1tico-de-pie-con-las-manos-juntas-concepto-de-trabajos-de-ingenier%C3%ADa.jpg?ver=6');
-
---Chofer 2
-WITH new_client AS (
-  INSERT INTO Client (rolId, nombre, apellido, phone)
-  values (2, 'Marcelo','Bonilla', 5)
-  returning clientId
-)
-INSERT INTO driver(driverId, address, fotoPerfil) values ((select clientId from new_client),'Berro 1116','https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS3SZoOmP597xM5DjWcRnwx4k5Ug8hvq0tVSBariZVSSPfpu8EoCRUKu6ngjcJweUzX9MY&usqp=CAU');
-
 --Chofer 3
 WITH new_client AS (
-  INSERT INTO Client (rolId, nombre, apellido, phone)
-  VALUES (2, 'Juan','Gonzalez', 6)
-  returning clientId
+  INSERT INTO Client ("rolId", name, surname, phone)
+  VALUES (2, 'Cholo','Rodriguez', 3)
+  returning "clientId"
 )
-INSERT INTO driver(driverId, address, fotoPerfil) values ((select clientId from new_client),'Berro 1116','https://us.123rf.com/450wm/marctran/marctran1906/marctran190600935/125688059-sonriente-hombre-asi%C3%A1tico-de-pie-con-las-manos-juntas-concepto-de-trabajos-de-ingenier%C3%ADa.jpg?ver=6');
+INSERT INTO driver("driverId", address, "photo") values ((select "clientId" from new_client),'Berro 1116','https://i.imgur.com/RGLP0wg.png');
+
+--Chofer 4
+WITH new_client AS (
+  INSERT INTO Client ("rolId", name, surname, phone)
+  values (2, 'Marcelo','Bonilla', 4)
+  returning "clientId"
+)
+INSERT INTO driver("driverId", address, "photo") values ((select "clientId" from new_client),'Berro 1116','https://i.imgur.com/59vbu16.png');
+
+--Chofer 5
+WITH new_client AS (
+  INSERT INTO Client ("rolId", name, surname, phone)
+  VALUES (2, 'Juan','Gonzalez', 5)
+  returning "clientId"
+)
+INSERT INTO driver("driverId", address, "photo") values ((select "clientId" from new_client),'Berro 1116','https://i.imgur.com/sVOuTkm.png');
+
+--Chofer 6
+WITH new_client AS (
+  INSERT INTO Client ("rolId", name, surname, phone)
+  VALUES (2, 'Mariela','Hernandez', 6)
+  returning "clientId"
+)
+INSERT INTO driver("driverId", address, "photo") values ((select "clientId" from new_client),'Berro 1116','https://i.imgur.com/T1fZfLH.png');
+
+--Chofer 7
+WITH new_client AS (
+  INSERT INTO Client ("rolId", name, surname, phone)
+  VALUES (2, 'Jimena','Silva', 7)
+  returning "clientId"
+)
+INSERT INTO driver("driverId", address, "photo") values ((select "clientId" from new_client),'Berro 1116','https://i.imgur.com/W5VVtBl.png');
+
+--pasajero 8
+WITH new_client AS (
+  INSERT INTO Client ("rolId", name, surname, phone)
+  values (1, 'Roberto','Suarez', 8)
+  returning "clientId"
+)
+INSERT INTO Passenger("passengerId") values ((select "clientId" from new_client));
+
+
+--pasajero 9
+WITH new_client AS (
+  INSERT INTO Client ("rolId", name, surname, phone)
+  values (1, 'Sebastian','Varela', 9)
+  returning "clientId"
+)
+INSERT INTO Passenger("passengerId") values ((select "clientId" from new_client));
+
+--pasajero 10
+WITH new_client AS (
+  INSERT INTO Client ("rolId", name, surname, phone)
+  values (1, 'Diego','Acosta', 10)
+  returning "clientId"
+)
+INSERT INTO Passenger("passengerId") values ((select "clientId" from new_client));
 
 --Autos
 --Creo autos y le seteo uno a chofer con id 3 
 
-INSERT INTO Car(driverId, plateNumber,colour,model, brand, typeColour)
-VALUES  (3, 'NAY-2233', 'white', 'Suzuki', 'Alto', 'car-1-white');
+-- INSERT INTO Car(driverId, plateNumber,colour,model, brand, typeColour)
+-- VALUES  (3, 'NAY-2233', 'white', 'Suzuki', 'Alto', 'car-1-white');
 
 
 WITH new_car AS (
@@ -172,14 +232,44 @@ WHERE driverId = 3;
 
 --Creo autos y le seteo uno a chofer con id 4 
 WITH new_car AS (
-  INSERT INTO Car(driverId, plateNumber,colour,model, brand, typeColour)
+  INSERT INTO Car("driverId", "plateNumber",colour,model, brand, "typeColour")
   VALUES  (4, 'NAY6666', 'white', 'volkswagen', 'Up', 'car-3-black')
-  returning carId
+  returning "carId"
 )
 UPDATE Driver
-SET carId = (select carId from new_car)
-WHERE driverId = 4;
+SET "activeCar" = (select "carId" from new_car)
+WHERE "driverId" = 4;
 
+--Creo autos y le seteo uno a chofer con id 5 
+WITH new_car AS (
+  INSERT INTO car("driverId", "plateNumber",colour,model, brand, "typeColour")
+  VALUES  (5, 'NAY5555', 'white', 'volkswagen', 'Up', 'car-3-black')
+  returning "carId"
+)
+UPDATE Driver
+SET "activeCar" = (select "carId" from new_car)
+WHERE "driverId" = 5;
+
+--Creo autos y le seteo uno a chofer con id 6 
+WITH new_car AS (
+  INSERT INTO car("driverId", "plateNumber",colour,model, brand, "typeColour")
+  VALUES  (6, 'NAY5555', 'white', 'volkswagen', 'Up', 'car-3-black')
+  returning "carId"
+)
+UPDATE Driver
+SET "activeCar" = (select "carId" from new_car)
+WHERE "driverId" = 6;
+
+
+--Creo autos y le seteo uno a chofer con id 7 
+WITH new_car AS (
+  INSERT INTO car("driverId", "plateNumber",colour,model, brand, "typeColour")
+  VALUES  (7, 'NAY6666', 'white', 'volkswagen', 'Up', 'car-3-black')
+  returning "carId"
+)
+UPDATE Driver
+SET "activeCar" = (select "carId" from new_car)
+WHERE "driverId" = 7;
 
 
 --Preferencias Configuracion de usuario

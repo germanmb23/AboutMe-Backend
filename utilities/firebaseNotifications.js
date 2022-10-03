@@ -6,23 +6,16 @@ firebase.initializeApp({
    databaseURL: "https://yuber-323814.firebaseio.com",
 });
 
-const sendFirebaseNotification = async (
-   targetFirebasePushToken,
-   message = undefined,
-   data,
-   title = "",
-   body = "",
-   sound = "bocinas"
-) => {
-   console.log(targetFirebasePushToken, data);
+const sendFirebaseNotification = async (targetFirebasePushToken, data, title = "", body = "", sound = "bocinas") => {
+   console.log("-----Notificaicon enviada------", targetFirebasePushToken, data);
 
-   if (message) data = { ...data, message };
    var message = {
       notification: {
+         // android_channel_id: "new_request",
+         // channel_id: "new_request",
          title,
-         body,
+         body: body ? body : "",
          sound,
-         // android_channel_id: "new_request_2",
       },
       data: { data: JSON.stringify(data) },
    };

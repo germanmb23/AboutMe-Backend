@@ -92,6 +92,79 @@ const setChat = (pool, idSolicitud, chat) => {
    });
 };
 
+const createRide = (pool, passengerId) => {
+   return new Promise((resolve, reject) => {
+      pool.query(`INSERT INTO ride("passengerId") VALUES(${passengerId}) RETURNING "idCabRequest"`, (err, res) => {
+         if (err) {
+            console.log(err);
+         } else {
+            resolve(res.rows[0]);
+         }
+      });
+   });
+};
+
+const getRide = (pool, idCabRequest) => {
+   return new Promise((resolve, reject) => {
+      pool.query(
+         `SELECT * 
+         FROM ride
+         WHERE "idCabRequest" = '${idCabRequest}'`,
+         (err, res) => {
+            if (err) {
+               console.log(err);
+            } else {
+               resolve(res.rows[0]);
+            }
+         }
+      );
+   });
+};
+
+const createNotification = (pool, idCabRequest) => {
+   return new Promise((resolve, reject) => {
+      pool.query(
+         `INSERT INTO notification("idCabRequest") VALUES(${idCabRequest}) RETURNING "idNotification"`,
+         (err, res) => {
+            if (err) {
+               console.log(err);
+            } else {
+               resolve(res.rows[0]);
+            }
+         }
+      );
+   });
+};
+
+const createSentNotification = (pool, idNotification, clientId) => {
+   pool.query(
+      `INSERT INTO SentNotification("idNotification", "clientId") VALUES(${idNotification}, ${clientId})`,
+      (err, res) => {
+         if (err) {
+            console.log(err);
+         } else {
+         }
+      }
+   );
+};
+
+const getSentNotification = (pool, idNotification) => {
+   return new Promise((resolve, reject) => {
+      pool.query(
+         `SELECT token
+            FROM SentNotification sn JOIN client c ON (sn."clientId" = c."clientId")
+            WHERE "idNotification" = ${idNotification}`,
+         (err, res) => {
+            if (err) {
+               console.log(err);
+            } else {
+               resolve(res.rows);
+            }
+         }
+      );
+   });
+};
+
 const getChoferesDisponibles = (pool) => {
    return new Promise((resolve, reject) => {
       pool.query(
@@ -237,4 +310,9 @@ module.exports = {
    getClient,
    getUserSettings,
    setUserSettings,
+   createRide,
+   createNotification,
+   createSentNotification,
+   getRide,
+   getSentNotification,
 };
