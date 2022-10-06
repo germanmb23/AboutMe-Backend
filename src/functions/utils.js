@@ -1,3 +1,5 @@
+const poolLock = require("../../utilities/poolLock");
+
 const setNotificando = (pool, username, value) => {
    pool.query(
       `UPDATE driver
@@ -64,6 +66,23 @@ const setUserSettings = (pool, idUserSetting, value) => {
          `UPDATE usersetting
          SET value = ${value}
          WHERE "idUserSetting" = '${idUserSetting}'`,
+         (err, res) => {
+            if (err) {
+               console.log(err);
+            } else {
+               resolve(res.rows);
+            }
+         }
+      );
+   });
+};
+
+const setDriverOnRide = (pool, idCabRequest, driverId) => {
+   return new Promise((resolve, reject) => {
+      pool.query(
+         `UPDATE ride
+         SET "driverId" = ${driverId}
+         WHERE "idCabRequest" = '${idCabRequest}'`,
          (err, res) => {
             if (err) {
                console.log(err);
@@ -222,6 +241,29 @@ const setTrabajando = (pool, username, value) => {
    );
 };
 
+const updateRatings = async (pool, idCabRequest, driver, rating) => {
+   let ride = await getRide(pool, idCabRequest);
+
+   let user = await getClient(pool, driver ? ride.driverId : ride.passengerId);
+
+   await pool.query(
+      `UPDATE client
+      SET "ratingsQuantity" = ${user.ratingsQuantity + 1},
+      "acumRatings" = ${user.acumRatings + rating},
+      rating = ${(user.acumRatings + rating) / (user.ratingsQuantity + 1)}
+      WHERE "clientId" = ${user.clientId};`,
+      (err, res) => {
+         if (err) {
+            console.log("Error signIn DB");
+            console.log(err);
+         } else {
+            try {
+            } catch (error) {}
+         }
+      }
+   );
+};
+
 const setCar = (pool, username, carId) => {
    pool.query(
       `UPDATE driver
@@ -315,4 +357,6 @@ module.exports = {
    createSentNotification,
    getRide,
    getSentNotification,
+   setDriverOnRide,
+   updateRatings,
 };

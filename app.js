@@ -1,5 +1,6 @@
 //https://aboutme-backend.herokuapp.com/
 //heroku restart -a aboutme-backend
+//heroku login
 //https://mac-blog.org.ua/node-rest-udp
 
 const cors = require("cors");
@@ -9,11 +10,13 @@ const path = require("path");
 const fs = require("fs");
 const sendExpoPushNotification = require("./utilities/expoNotifications");
 const sendFirebaseNotification = require("./utilities/firebaseNotifications");
+const poolLock = require("./utilities/poolLock");
+
 const utils = require("./src/functions/utils");
 
 const app = express();
 var bodyParser = require("body-parser");
-const port = process.env.PORT || 4444;
+const port = process.env.PORT || 4449;
 //const port = process.env.PORT || 4444;
 
 const mails = require("./src/emails/account");
@@ -24,18 +27,20 @@ const auth = require("./middleware/auth");
 const sendPushNotification = sendFirebaseNotification;
 
 const events = { NUEVO_VIAJE: 1, VIAJE_TOMADO: 2, VIAJE_FIN_TIEMPO_ACEPTACION: 3 };
+var AsyncLock = require("async-lock");
+var lock = new AsyncLock();
 
-sendPushNotification(
-   "fx1vpjFNQ0ePET_jOGBZT7:APA91bF_iUsI3iVWUwyG0jiz2N9EgwL5aLT_1hgSUMc3giioFNn4KFWE1hUyd2Nt0DYIP5l1-6i2QMhFfzOoVLT9iWH4azcYFdHLj6nomvZRPSXzoJM2GiiEQdCsxsNor27KwTXgc4LI",
-   {
-      event: events.NUEVO_VIAJE,
-      cabRequest: {
-         requestTime: new Date(),
-      },
-   },
-   "Viaje disponible",
-   "Presiona para aceptar, desliza para cancelar"
-);
+// sendPushNotification(
+//    "fx1vpjFNQ0ePET_jOGBZT7:APA91bF_iUsI3iVWUwyG0jiz2N9EgwL5aLT_1hgSUMc3giioFNn4KFWE1hUyd2Nt0DYIP5l1-6i2QMhFfzOoVLT9iWH4azcYFdHLj6nomvZRPSXzoJM2GiiEQdCsxsNor27KwTXgc4LI",
+//    {
+//       event: events.NUEVO_VIAJE,
+//       cabRequest: {
+//          requestTime: new Date(),
+//       },
+//    },
+//    "Viaje disponible",
+//    "Presiona para aceptar, desliza para cancelar"
+// );
 
 const intervaloDeAviso = 10000; //10 segundos
 
@@ -44,7 +49,10 @@ app.use(express.json());
 app.use(bodyParser.json());
 app.use(cors());
 const idSolicitudDriverPasengerMap = new Map();
-const TIEMPO_DE_ESPERA_SOLICITUD = 10000;
+
+const semaforos = new Map();
+
+const TIEMPO_DE_ESPERA_SOLICITUD = 20000;
 //----------------TCP SOCKET---------------
 const http = require("http");
 const { Server } = require("socket.io");
@@ -213,8 +221,33 @@ server.listen(port, () => {
    console.log("Server is up on port " + port);
 });
 
-app.get("/ping", (req, resp) => {
+app.get("/ping/:id", async (req, resp) => {
    try {
+      const { id } = req.params;
+
+      // if (id == 1) {
+      //    console.log("Creo semaforo");
+      //    semaforos.set(id, require("semaphore")(1));
+      // }
+      // let sem = semaforos.get(1);
+      // console.log("/ping");
+
+      lock.acquire(
+         id,
+         async () => {
+            console.log("Entro semaforo", id);
+            await new Promise((r) => setTimeout(r, 5000));
+            console.log("Salgo semaforo", id);
+         },
+         function (err, ret) {}
+      );
+
+      // sem.take(async () => {
+      //    console.log("Entro semaforo");
+      //    await new Promise((r) => setTimeout(r, 5000));
+      //    sem.leave();
+      //    console.log("Salgo semafoto");
+      // });
       resp.status(200).end();
    } catch (error) {
       console.log("ERROR ping: ", error);
@@ -343,7 +376,7 @@ app.post("/setRideDone", (req, resp) => {
    }
 });
 
-app.post("/rate", (req, resp) => {
+app.post("/rate", async (req, resp) => {
    try {
       let clientType = req.headers["x-user-type"];
       let toClientType;
@@ -355,7 +388,7 @@ app.post("/rate", (req, resp) => {
       console.log("/rate", idSolicitud, rating, comment);
       if (toClientType == "driver") {
          //soy passenger, puntuo driver
-         pool.query(
+         await pool.query(
             `UPDATE ride
             SET "ratingPassengerToDriver" = ${rating}
             ${comment ? ", commentPassengerToDriver = '" + comment + "'" : ""}
@@ -369,6 +402,7 @@ app.post("/rate", (req, resp) => {
                }
             }
          );
+         await utils.updateRatings(pool, idSolicitud, true, rating);
       } else {
          //soy driver, puntuo passenger
          pool.query(
@@ -385,6 +419,7 @@ app.post("/rate", (req, resp) => {
                }
             }
          );
+         await utils.updateRatings(pool, idSolicitud, false, rating);
       }
    } catch (error) {
       console.log("ERROR rate: ", error);
@@ -516,24 +551,32 @@ app.post("/setPushNotificationToken", async (req, resp) => {
       const username = req.header("x-user-id");
       const { token } = req.body;
       console.log("setPushNotificationToken", username, token);
-      await setPushNotificationToken(username, token);
+      setPushNotificationToken(username, token);
+      // await setPushNotificationToken(username, token);
       resp.sendStatus(200).end();
    } catch (error) {
-      console.log("ERROR end setPushNotificationToken");
+      console.log("ERROR setPushNotificationToken", error);
    }
 });
 
 const setPushNotificationToken = (username, token) => {
-   return new Promise((resolve, reject) => {
-      pool.query(
-         `UPDATE client
+   poolLock.query(
+      pool,
+      `UPDATE client
             SET token = '${token}'
-            WHERE "clientId" = ${username}`,
-         (err, res) => {
-            if (err) console.log(err);
-         }
-      );
-   });
+            WHERE "clientId" = ${username}`
+   );
+
+   // return new Promise((resolve, reject) => {
+   //    pool.query(
+   //       `UPDATE client
+   //          SET token = '${token}'
+   //          WHERE "clientId" = ${username}`,
+   //       (err, res) => {
+   //          if (err) console.log(err);
+   //       }
+   //    );
+   // });
 };
 
 app.post("/sendMessage", async (req, res) => {
@@ -696,7 +739,7 @@ app.post("/YuberRequest", async (req, res) => {
          startLongitude: longitude,
          passengerToken: req.body.token,
          passengerUsername: passengerUsername,
-         requestTime: requestTime,
+         requestTime,
          iterador: 0,
          name: passengerClient.name,
       };
@@ -731,8 +774,7 @@ app.post("/YuberRequest", async (req, res) => {
       const notificationRes = await utils.createNotification(pool, idSolicitud);
 
       idNotificacionRequest = notificationRes?.idNotification;
-      console.log("Conductores");
-      resData.map((a) => console.log(a.driverId));
+
       resData.forEach((u) => {
          if (u.token) {
             sendPushNotification(
@@ -775,7 +817,6 @@ app.post("/YuberRequest", async (req, res) => {
                console.log("ERROR: pasajero sin token al intentar enviar la notificacion");
             }
 
-            //Si tiene driver id ya notifique cuando se agarro
             const sentNotifications = await utils.getSentNotification(pool, notificationRes?.idNotification);
 
             sentNotifications.forEach((n) => {
@@ -918,9 +959,10 @@ const avisarConductores = async (
    // }
 };
 
-//Passenger accepta
+//Passenger accepta cliente acepta
 app.post("/", (req, resp) => {
    try {
+      console.log("Cliente acepta");
       let idSolicitud = req.body.idSolicitud;
       const requestData = waitingPassengerAcceptData.get(idSolicitud);
       const passengerToken = yuberRequestData.get(idSolicitud).passengerToken;
@@ -953,6 +995,7 @@ app.post("/", (req, resp) => {
                waitingPassengerAcceptData.delete(idSolicitud);
                chatMap.set(idSolicitud, { chat: [], tokens: { passengerToken, driverToken: driverToken } });
 
+               onsole.log("Notifico driver");
                sendPushNotification(driverToken, {
                   screen: constants.DRIVER_SCREEN,
                   idSolicitud,
@@ -1083,69 +1126,89 @@ app.post("/stopYuber", (req, res) => {
 
 //chofer Acepta
 app.post("/acceptCabRequests", async (req, resp) => {
-   try {
-      const username = req.header("x-user-id");
-      const { idSolicitud, choferLocation } = req.body;
-      const requestData = yuberRequestData.get(idSolicitud);
-      const passengerToken = requestData.passengerToken;
-      const startLatitude = requestData.startLatitude;
-      const startLongitude = requestData.startLongitude;
-      waitingPassengerAcceptData.set(idSolicitud, { ...requestData, choferUsername: username, choferLocation });
-      limpioDatosDeSolicitud(idSolicitud, false);
+   const username = req.header("x-user-id");
+   const { idSolicitud, choferLocation } = req.body;
 
-      const sentNotifications = await utils.getSentNotification(pool, idNotificacionRequest);
+   lock.acquire(idSolicitud, async () => {
+      try {
+         const client = await pool.connect();
+         pool = client;
 
-      sentNotifications.forEach((n) => {
-         if (n.token && n.clientId != username) {
-            sendPushNotification(
-               n.token,
-               { event: events.VIAJE_FIN_TIEMPO_ACEPTACION },
-               "Te perdiste un viaje 1",
-               null,
-               ""
-            );
-         } else {
-            console.log("ERROR: conductor sin token al intentar enviar la notificacion");
+         //FIX-ME (espero?)
+         await utils.setDriverOnRide(pool, idSolicitud, username);
+
+         const requestData = yuberRequestData.get(idSolicitud);
+         const passengerToken = requestData.passengerToken;
+         const startLatitude = requestData.startLatitude;
+         const startLongitude = requestData.startLongitude;
+
+         const ride = utils.getRide(pool, idSolicitud);
+
+         if (ride.driverId) {
+            resp.status(200).send({ taked: true }).end();
+            return;
          }
-      });
 
-      pool.query(
-         `SELECT *
+         waitingPassengerAcceptData.set(idSolicitud, { ...requestData, choferUsername: username, choferLocation });
+         limpioDatosDeSolicitud(idSolicitud, false);
+
+         const sentNotifications = await utils.getSentNotification(pool, idNotificacionRequest);
+
+         sentNotifications.forEach((n) => {
+            if (n.token && n.clientId != username) {
+               sendPushNotification(
+                  n.token,
+                  { event: events.VIAJE_FIN_TIEMPO_ACEPTACION },
+                  "Te perdiste un viaje 1",
+                  null,
+                  ""
+               );
+            } else {
+               console.log("ERROR: conductor sin token al intentar enviar la notificacion");
+            }
+         });
+         console.log("adasdsad");
+         pool.query(
+            `SELECT *
         FROM client FULL JOIN driver ON client."clientId" = driver."driverId" FULL JOIN car ON driver."activeCar" = car."carId"
         WHERE "clientId" = ${username} `,
-         (err, res) => {
-            if (err) {
-               console.log("Error signIn DB");
-               console.log(err);
-            } else {
-               try {
-                  sendPushNotification(passengerToken, {
-                     screen: constants.WAITING_DRIVER_SCREEN,
-                     ...res.rows[0],
-                     aceptado: true,
-                     idSolicitud,
-                     driverUserName: username,
-                     idChoferAccepted: username,
-                     choferLatitude: choferLocation.latitude,
-                     choferLongitude: choferLocation.longitude,
-                     startLongitude,
-                     startLatitude,
-                  });
-                  resp.status(200).end();
-                  return;
-                  //resp.status(200).send({ clientType: result.clienttype });
-               } catch (error) {
-                  console.log(error);
-                  //resp.status(401).send({ message: 'invalid email' });
+            (err, res) => {
+               if (err) {
+                  console.log("Error signIn DB");
+                  console.log(err);
+               } else {
+                  try {
+                     sendPushNotification(passengerToken, {
+                        screen: constants.WAITING_DRIVER_SCREEN,
+                        ...res.rows[0],
+                        aceptado: true,
+                        idSolicitud,
+                        driverUserName: username,
+                        idChoferAccepted: username,
+                        choferLatitude: choferLocation.latitude,
+                        choferLongitude: choferLocation.longitude,
+                        startLongitude,
+                        startLatitude,
+                     });
+                     resp.status(200).end();
+                     return;
+                     //resp.status(200).send({ clientType: result.clienttype });
+                  } catch (error) {
+                     console.log(error);
+                     //resp.status(401).send({ message: 'invalid email' });
+                  }
                }
             }
-         }
-      );
+         );
+         await pool.release();
+         await pool.end();
+      } catch (error) {
+         // resp.status(200).end();
+         console.log("Error acceptCabRequests: ", error);
+      }
+   });
+   resp.status(200).end();
 
-      resp.status(200).end();
-   } catch (error) {
-      console.log("Error acceptCabRequests: ", error);
-   }
    return;
    //choferesDisponibles.get(myUsername).ocupado = true;
    choferesDisponibles.get(passengerUsername).latitude = req.body.latitude;
