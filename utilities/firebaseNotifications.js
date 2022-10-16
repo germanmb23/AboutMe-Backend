@@ -6,8 +6,17 @@ firebase.initializeApp({
    databaseURL: "https://yuber-323814.firebaseio.com",
 });
 
-const sendFirebaseNotification = async (targetFirebasePushToken, data, title = "", body = "", sound = "bocinas") => {
-   console.log("-----Notificaicon enviada------", targetFirebasePushToken, data);
+const sendFirebaseNotification = async (
+   targetFirebasePushToken,
+   data,
+   title = "",
+   body = "",
+   sound = "bocinas",
+   print = true
+) => {
+   if (print) {
+      console.log("-----Notificaicon enviada------", targetFirebasePushToken, data);
+   }
 
    var message = {
       notification: {

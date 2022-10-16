@@ -1,12 +1,16 @@
 var AsyncLock = require("async-lock");
-var lock = new AsyncLock({ maxPending: 4 });
+var lock = new AsyncLock({ maxPending: 2 });
 
-const query = async (pool, query) => {
+const query = async (pool, query, callback) => {
    lock.acquire("elephantsql", async () => {
       //   const client = await pool.connect();
       try {
          return pool.query(query, (err, res) => {
-            if (err) console.log(err);
+            if (err) {
+               console.log(err);
+            } else {
+               if (callback) callback(err, res);
+            }
          });
       } finally {
          //  await client.release();

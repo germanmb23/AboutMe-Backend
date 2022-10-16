@@ -277,8 +277,8 @@ CREATE TABLE UserSetting(
     "idUserSetting" INT GENERATED ALWAYS AS IDENTITY,
     "clientId" INT,
     "idSetting" INT,
-    "value" BOOLEAN,
-    activo BOOLEAN,
+    "value" BOOLEAN DEFAULT true,
+    activo BOOLEAN DEFAULT true,
     primary key ( "clientId", "idSetting"),
     FOREIGN KEY("clientId") REFERENCES Client("clientId"),
     FOREIGN KEY("idSetting") REFERENCES Setting("idSetting")
