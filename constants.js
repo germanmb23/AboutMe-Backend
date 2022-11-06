@@ -17,5 +17,12 @@ module.exports = Object.freeze({
    OTP_SCREEN: "OTPScreen",
    PHONE_SCREEN: "PhoneScreen",
    DRIVER_HOME_SCREEN: "DriverHomeScreen",
-   estadoViaje: { TIEMPO_FINALIZADO: 1, RECHAZADO_POR_USUARIO: 2, TRANSCURSO: 3, FINALIZADO: 4 },
+   estadoViaje: {
+      NUEVO: 50,
+      TIEMPO_FINALIZADO: 51,
+      RECHAZADO_POR_USUARIO: 52,
+      TRANSCURSO: 53,
+      FINALIZADO: 54,
+      CANCELADO_POR_CONDUCTOR_EN_PROGRESO: 55,
+   },
 });

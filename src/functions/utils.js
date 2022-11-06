@@ -45,6 +45,66 @@ const getChat = (pool, idSolicitud) => {
    });
 };
 
+const isDoneCRequest = (pool, idCabRequest) => {
+   return new Promise((resolve, reject) => {
+      poolLock.query(
+         pool,
+         `SELECT done
+        FROM ride
+        WHERE "idCabRequest" = '${idCabRequest}'`,
+         (err, res) => {
+            if (err) {
+               console.log(err);
+            } else {
+               if (!res.rows[0]) {
+                  resolve({ done: true });
+               } else {
+                  resolve({ done: res.rows[0]?.done });
+               }
+            }
+         }
+      );
+   });
+};
+
+const setDoneCRequest = (pool, idCabRequest, state, timeEnd) => {
+   return new Promise((resolve, reject) => {
+      poolLock.query(
+         pool,
+         `UPDATE ride
+         SET done = TRUE
+         ${state ? `, state = ${state} ` : ""}
+         ${timeEnd ? `, "timeEnd" = ${timeEnd} ` : ""}
+         WHERE "idCabRequest" = '${idCabRequest}'`,
+         (err, res) => {
+            if (err) {
+               console.log(err);
+            } else {
+               resolve({ ok: true });
+            }
+         }
+      );
+   });
+};
+
+const setRideState = (pool, idCabRequest, state) => {
+   return new Promise((resolve, reject) => {
+      poolLock.query(
+         pool,
+         `UPDATE ride
+         SET state = ${state}
+         WHERE "idCabRequest" = '${idCabRequest}'`,
+         (err, res) => {
+            if (err) {
+               console.log(err);
+            } else {
+               resolve({ ok: true });
+            }
+         }
+      );
+   });
+};
+
 const getUserSettings = (pool, clientId) => {
    return new Promise((resolve, reject) => {
       poolLock.query(
@@ -60,6 +120,24 @@ const getUserSettings = (pool, clientId) => {
             }
          }
       );
+   });
+};
+
+const setChannels = (pool, clientId, channels) => {
+   let query = `INSERT INTO UserChannel ("clientId", "idChannel") values `;
+   channels.forEach((c, index) => {
+      query += `(${clientId}, ${c.idChannel})${index == channels.length - 1 ? "" : ", "}`;
+   });
+   console.log(query);
+
+   return new Promise((resolve, reject) => {
+      poolLock.query(pool, query, (err, res) => {
+         if (err) {
+            console.log(err);
+         } else {
+            resolve(res.rows);
+         }
+      });
    });
 };
 
@@ -81,12 +159,14 @@ const setUserSettings = (pool, idUserSetting, value) => {
    });
 };
 
-const setDriverOnRide = (pool, idCabRequest, driverId) => {
+const setDriverOnRide = (pool, idCabRequest, driverId, timeStart, carId) => {
    return new Promise((resolve, reject) => {
       poolLock.query(
          pool,
          `UPDATE ride
-         SET "driverId" = ${driverId}
+         SET "driverId" = ${driverId},
+         "timeStart" = ${timeStart},
+         "carId" = ${carId}
          WHERE "idCabRequest" = '${idCabRequest}'`,
          (err, res) => {
             if (err) {
@@ -117,11 +197,38 @@ const setChat = (pool, idSolicitud, chat) => {
    });
 };
 
-const createRide = (pool, passengerId) => {
+const createRide = (
+   pool,
+   passengerId,
+   originDescription,
+   destinationDescription,
+   startLatitude,
+   startLongitude,
+   endLatitude,
+   endLongitude
+) => {
    return new Promise((resolve, reject) => {
       poolLock.query(
          pool,
-         `INSERT INTO ride("passengerId") VALUES(${passengerId}) RETURNING "idCabRequest"`,
+         `INSERT INTO ride("passengerId", "originDescription", "destinationDescription", "startLatitude", "startLongitude",  "endLatitude", "endLongitude")
+         VALUES(${passengerId}, '${originDescription}', '${destinationDescription}', '${startLatitude}', '${startLongitude}', '${endLatitude}', '${endLongitude}') RETURNING "idCabRequest"`,
+         (err, res) => {
+            if (err) {
+               console.log(err);
+            } else {
+               resolve(res.rows[0]);
+            }
+         }
+      );
+   });
+};
+
+const createOpinion = (pool, clientId, message, date) => {
+   return new Promise((resolve, reject) => {
+      poolLock.query(
+         pool,
+         `INSERT INTO opinion("clientId", "message", "date")
+         VALUES(${clientId}, '${message}', '${date}')`,
          (err, res) => {
             if (err) {
                console.log(err);
@@ -351,7 +458,7 @@ const getClient = (pool, username) => {
    });
 };
 
-const checkDrivers = (pool, token) => {
+const checkDrivers = (pool, token, username) => {
    return new Promise((resolve, reject) => {
       poolLock.query(
          pool,
@@ -363,7 +470,7 @@ const checkDrivers = (pool, token) => {
                console.log("Error signIn DB");
                console.log(err);
             } else {
-               res.rows.forEach((driver) => setTrabajando(pool, driver.driverId, false));
+               res.rows.forEach((driver) => driver.driverId != username && setTrabajando(pool, driver.driverId, false));
                resolve(res.rows);
             }
          }
@@ -392,4 +499,9 @@ module.exports = {
    setDriverOnRide,
    updateRatings,
    checkDrivers,
+   isDoneCRequest,
+   setDoneCRequest,
+   setRideState,
+   createOpinion,
+   setChannels,
 };

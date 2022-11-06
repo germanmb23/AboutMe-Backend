@@ -80,6 +80,15 @@ CREATE TABLE Passenger(
     FOREIGN KEY(passengerId) REFERENCES Client(clientId)
 );
 
+CREATE TABLE Opinion(
+  	"opinionId" INT GENERATED ALWAYS AS IDENTITY, 
+    "date" TIMESTAMP DEFAULT null,
+    "clientId" INT,
+    message TEXT,
+  PRIMARY KEY("opinionId"),
+    FOREIGN KEY("clientId") REFERENCES Client("clientId")
+);
+
 CREATE TABLE Ride(
     -- rideId INT GENERATED ALWAYS AS IDENTITY,
 	  "idCabRequest" INT GENERATED ALWAYS AS IDENTITY, 
@@ -92,13 +101,26 @@ CREATE TABLE Ride(
     "ratingDriverToPassenger" INT,
     "commentPassengerToDriver" TEXT,  
     "commentDriverToPassenger" TEXT,
+    "originDescription" TEXT,
+    "destinationDescription" TEXT,
     latitude FLOAT,
     longitude FLOAT,
+    "startLatitude" FLOAT,
+    "startLongitude" FLOAT,
+    "endLatitude" FLOAT,
+    "endLongitude" FLOAT,
     done BOOLEAN DEFAULT false,
+    "state" SMALLINT default 1,
+    "timeStart" TIMESTAMP,
+    "timeEnd" TIMESTAMP,
     PRIMARY KEY("idCabRequest"),
     -- PRIMARY KEY(idCabRequest),
+    "carId" int,
+    cost INT,
     FOREIGN KEY("driverId") REFERENCES Driver("driverId"),
-  	FOREIGN KEY("passengerId") REFERENCES Passenger("passengerId")
+  	FOREIGN KEY("passengerId") REFERENCES Passenger("passengerId"),AUTO_INCREMENT,
+    FOREIGN KEY("carId") REFERENCES Car("carId"),
+
 );
 
 CREATE TABLE Notification(
@@ -109,16 +131,34 @@ CREATE TABLE Notification(
     FOREIGN KEY("idCabRequest") REFERENCES Ride("idCabRequest")
   );
 
-CREATE TABLE SentNotification(
+CREATE TABLE Notification(
     -- rideId INT GENERATED ALWAYS AS IDENTITY,
-	  "idSentNotification" INT GENERATED ALWAYS AS IDENTITY,
-	  "idNotification" INT,
-    "clientId"  INT,
-    PRIMARY KEY("idSentNotification"),
-    FOREIGN KEY("idNotification") REFERENCES Notification("idNotification"),
-    FOREIGN KEY("clientId") REFERENCES Client("clientId")
+	  "idNotification" INT GENERATED ALWAYS AS IDENTITY,
+    "idCabRequest" INT,
+    PRIMARY KEY("idNotification"),
+    FOREIGN KEY("idCabRequest") REFERENCES Ride("idCabRequest")
   );
 
+CREATE TABLE Channel(
+	  "idChannel" INT GENERATED ALWAYS AS IDENTITY,
+	  "name" TEXT
+   );
+
+INSERT INTO Channel (name) values ('Facebook');
+INSERT INTO Channel (name) values ('Radio');
+INSERT INTO Channel (name) values ('Televisión');
+INSERT INTO Channel (name) values ('Me contaron');
+INSERT INTO Channel (name) values ('otro');
+
+
+
+
+CREATE TABLE UserChannel(
+	  "idChannel" INT,
+	  "clientId" INT,
+    PRIMARY KEY("idChannel", "clientId"),
+    FOREIGN KEY("clientId") REFERENCES client("clientId")
+   );
 
 CREATE TABLE Config(
 	config_id INT GENERATED ALWAYS AS IDENTITY,

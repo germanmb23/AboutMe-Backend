@@ -11,6 +11,7 @@ const fs = require("fs");
 const sendExpoPushNotification = require("./utilities/expoNotifications");
 const sendFirebaseNotification = require("./utilities/firebaseNotifications");
 const poolLock = require("./utilities/poolLock");
+const axios = require("axios");
 
 const utils = require("./src/functions/utils");
 
@@ -26,7 +27,17 @@ const auth = require("./middleware/auth");
 
 const sendPushNotification = sendFirebaseNotification;
 
-const events = { NUEVO_VIAJE: 1, VIAJE_TOMADO: 2, VIAJE_FIN_TIEMPO_ACEPTACION: 3, CHOFER_ACEPTO: 4 };
+const costo = 160;
+
+const events = {
+   NUEVO_VIAJE: 1,
+   VIAJE_TOMADO: 2,
+   VIAJE_FIN_TIEMPO_ACEPTACION: 3,
+   CHOFER_ACEPTO: 4,
+   PASAJERO_ACEPTO: 5,
+};
+
+const rideState = {};
 
 var AsyncLock = require("async-lock");
 var lock = new AsyncLock();
@@ -93,7 +104,7 @@ const rooms = { UPDATE_DRIVER_LOCATION: "update-driver-location" };
 
 const socketsMap = new Map();
 
-const idSolicitudDriverIdPassengerId = new Map();
+const lastDriverLocationRequestMap = new Map();
 //EVENTOS
 // Initialization
 const session_handler = require("io-session-handler").from(io);
@@ -111,6 +122,9 @@ session_handler.onMessageDelivered((data) => {
 const SOCKET_SEND_DRIVER_LOCATION = 1;
 const SOCKET_GET_DRIVER_LOCATION = 2;
 const SOCKET_PRESENTARSE = 3;
+const SOCKET_GET_IS_DONE_REQUEST = 4;
+const SOCKET_IS_DONE_REQUEST = 5;
+
 io.on("connection", (socket) => {
    // console.log("Socket conectado", socket.id);
 
@@ -142,17 +156,37 @@ io.on("connection", (socket) => {
    //    socket.emit("chat message", "HOLA");
    // }, 500);
    socket.emit("chat message", "HOLA");
-   socket.on(rooms.UPDATE_DRIVER_LOCATION, function (msg) {
+   socket.on(rooms.UPDATE_DRIVER_LOCATION, async function (msg) {
       try {
-         console.log("sadas");
-         session_handler.pushMessage("1", { event: estadoViaje.FINALIZADO });
-
          const message = JSON.parse(msg);
+         const { passengerUsername } = message;
+
          switch (message.event) {
+            case SOCKET_GET_IS_DONE_REQUEST:
+               console.log("SOCKET_GET_IS_DONE_REQUEST", message?.idCabRequest);
+               if (message?.idCabRequest) {
+                  const respuesta = await utils.isDoneCRequest(pool, message.idCabRequest);
+                  console.log(
+                     "SOCKET_GET_IS_DONE_REQUEST",
+                     passengerUsername.toString(),
+                     respuesta,
+                     message?.idCabRequest,
+                     {
+                        event: SOCKET_IS_DONE_REQUEST,
+                        done: false,
+                     }
+                  );
+
+                  session_handler.pushMessage(passengerUsername.toString(), {
+                     event: SOCKET_IS_DONE_REQUEST,
+                     done: respuesta?.done,
+                     choferLocation: lastDriverLocationRequestMap.get(message?.idCabRequest),
+                  });
+               }
+               break;
             case SOCKET_SEND_DRIVER_LOCATION:
                console.log("SOCKET_UPDATE_DRIVER_LOCATION");
                //Recibo
-               const { clientId, event, passengerUsername, latitude, longitude, idSolicitud: idSolicitudD } = message;
                // console.log(message);
                console.log(passengerUsername);
                if (!passengerUsername) return;
@@ -160,67 +194,69 @@ io.on("connection", (socket) => {
                   ...message,
                   event: SOCKET_SEND_DRIVER_LOCATION,
                });
-               // updateDriverLocation({ username: clientId, latitude, longitude });
-               // const resD = idSolicitudDriverPasengerMap.get(idSolicitudD);
-               // if (resD?.clientAdress) {
-               //    console.log("SOCKET PASSENGER", idSolicitudD);
-               //    socket.send(
-               //       JSON.stringify({ latitude, longitude }),
-               //       resD.clientAdress.port,
-               //       resD.clientAdress.ip,
-               //       (err) => {
-               //          console.log("SOCKET PASSENGER", resD.clientAdress.port, resD.clientAdress.ip);
-               //          console.log(err ? err : "Sended");
-               //          // socket.close();
-               //       }
-               //    );
-               // }
-               // console.log(idSolicitudDriverIdPassengerId.get(idSolicitudD));
-               // if (!idSolicitudDriverIdPassengerId.get(idSolicitudD)) {
-               //    idSolicitudDriverIdPassengerId.set(idSolicitudD, { driverId: clientId, passengerId: 2 });
-               //    return;
-               // }
-               // const passengerId = idSolicitudDriverIdPassengerId.get(idSolicitudD)?.passengerId;
-               // if (!passengerId) return;
-               // console.log("AAAA");
-               // const socketPassenger = socketsMap.get(passengerId);
-               // if (!socketPassenger) return;
 
-               // try {
-               //    socketPassenger.emit("driver-location", JSON.stringify({ latitude, longitude }));
-               // } catch (error) {
-               //    console.log("ERROR al enviar ubicacion del chofer al pasajero en evento SOCKET_SEND_DRIVER_LOCATION");
-               // }
+               lastDriverLocationRequestMap.set(message.idCabRequest, message);
+            // updateDriverLocation({ username: clientId, latitude, longitude });
+            // const resD = idSolicitudDriverPasengerMap.get(idSolicitudD);
+            // if (resD?.clientAdress) {
+            //    console.log("SOCKET PASSENGER", idSolicitudD);
+            //    socket.send(
+            //       JSON.stringify({ latitude, longitude }),
+            //       resD.clientAdress.port,
+            //       resD.clientAdress.ip,
+            //       (err) => {
+            //          console.log("SOCKET PASSENGER", resD.clientAdress.port, resD.clientAdress.ip);
+            //          console.log(err ? err : "Sended");
+            //          // socket.close();
+            //       }
+            //    );
+            // }
+            // console.log(idSolicitudDriverIdPassengerId.get(idSolicitudD));
+            // if (!idSolicitudDriverIdPassengerId.get(idSolicitudD)) {
+            //    idSolicitudDriverIdPassengerId.set(idSolicitudD, { driverId: clientId, passengerId: 2 });
+            //    return;
+            // }
+            // const passengerId = idSolicitudDriverIdPassengerId.get(idSolicitudD)?.passengerId;
+            // if (!passengerId) return;
+            // console.log("AAAA");
+            // const socketPassenger = socketsMap.get(passengerId);
+            // if (!socketPassenger) return;
 
-               break;
-            case SOCKET_GET_DRIVER_LOCATION:
-               try {
-                  const { idSolicitud: idSolicitudP } = message;
-                  const resP = idSolicitudDriverPasengerMap.get(idSolicitudP);
-                  const clientAdress = { ip: sender.address, port: sender.port };
-                  idSolicitudDriverPasengerMap.set(idSolicitudP, { ...resP, clientAdress });
-                  console.log(idSolicitudDriverPasengerMap);
+            // try {
+            //    socketPassenger.emit("driver-location", JSON.stringify({ latitude, longitude }));
+            // } catch (error) {
+            //    console.log("ERROR al enviar ubicacion del chofer al pasajero en evento SOCKET_SEND_DRIVER_LOCATION");
+            // }
 
-                  // let res = idSolicitudDriverPasengerMap.get(idSolicitudP)
-                  // if(res){
-                  //    res.clientAdress ={ip:sender.address,port:sender.port}
-                  // }
-                  // idSolicitudDriverPasengerMap.set(idSolicitudP, res)
-                  // const location = choferesDisponibles.get("4");
-                  // console.log(location);
-                  // socket.emit(rooms.UPDATE_DRIVER_LOCATION, JSON.stringify(location));
-               } catch (error) {
-                  console.log("EROR EN SOCKET_GET_DRIVER_LOCATION");
-               }
-               break;
-            case SOCKET_PRESENTARSE:
-               console.log("SOCKET_PRESENTARSE");
-               if (message.clientId && message.idSolicitud) {
-                  console.log(message.clientId, message.idSolicitud);
-                  idSolicitudDriverIdPassengerId.get(message.idSolicitud).passengerId = message.clientId;
-               }
-               console.log(message);
-               break;
+            //    break;
+            // case SOCKET_GET_DRIVER_LOCATION:
+            //    try {
+            //       const { idSolicitud: idSolicitudP } = message;
+            //       const resP = idSolicitudDriverPasengerMap.get(idSolicitudP);
+            //       const clientAdress = { ip: sender.address, port: sender.port };
+            //       idSolicitudDriverPasengerMap.set(idSolicitudP, { ...resP, clientAdress });
+            //       console.log(idSolicitudDriverPasengerMap);
+
+            //       // let res = idSolicitudDriverPasengerMap.get(idSolicitudP)
+            //       // if(res){
+            //       //    res.clientAdress ={ip:sender.address,port:sender.port}
+            //       // }
+            //       // idSolicitudDriverPasengerMap.set(idSolicitudP, res)
+            //       // const location = choferesDisponibles.get("4");
+            //       // console.log(location);
+            //       // socket.emit(rooms.UPDATE_DRIVER_LOCATION, JSON.stringify(location));
+            //    } catch (error) {
+            //       console.log("EROR EN SOCKET_GET_DRIVER_LOCATION");
+            //    }
+            //    break;
+            // case SOCKET_PRESENTARSE:
+            //    console.log("SOCKET_PRESENTARSE");
+            //    if (message.clientId && message.idSolicitud) {
+            //       console.log(message.clientId, message.idSolicitud);
+            //       idSolicitudDriverIdPassengerId.get(message.idSolicitud).passengerId = message.clientId;
+            //    }
+            //    console.log(message);
+            //    break;
             default:
                console.log("------------------------", message);
 
@@ -276,6 +312,15 @@ app.get("/ping/:id", async (req, resp) => {
    }
 });
 
+app.get("/get-price", async (req, resp) => {
+   try {
+      console.log("/get-price", costo);
+      resp.status(200).send({ price: costo });
+   } catch (error) {
+      console.log("ERROR ping: ", error);
+   }
+});
+
 const getConfig = () => {
    const ret = poolLock.query(
       pool,
@@ -312,59 +357,69 @@ let chatMap = new Map();
 //------------CLIENTS---------------
 
 var idNotificacionRequest;
-app.post("/isDoneRequest", (req, resp) => {
+app.post("/isDoneRequest", async (req, resp) => {
    try {
-      console.log("/isDoneRequest", req.body.idSolicitud);
+      console.log("/isDoneRequest", req.body.idCabRequest);
       // resp.send({ done: true });
       // resp.status(200).end();
-      poolLock.query(
-         pool,
-         `SELECT done
-        FROM ride
-        WHERE "idCabRequest" = '${req.body.idSolicitud}'`,
-         (err, res) => {
-            if (err) {
-               resp.status(401).send({ message: "error on save ride" });
-               console.log(err);
-            } else {
-               if (!res.rows[0]) {
-                  resp.send({ done: true });
-                  setRideDone;
-                  resp.status(200).end();
-                  return;
-               }
-               // resp.send({ done: true });
-               // resp.status(200).end();
-               // return;
-               resp.status(200).send(res.rows[0]).end();
-            }
-         }
-      );
+      const respuesta = await utils.isDoneCRequest(pool, req.body.idCabRequest);
+      resp.status(200).send(respuesta).end();
+      // poolLock.query(
+      //    pool,
+      //    `SELECT done
+      //   FROM ride
+      //   WHERE "idCabRequest" = '${req.body.idCabRequest}'`,
+      //    (err, res) => {
+      //       if (err) {
+      //          resp.status(401).send({ message: "error on save ride" });
+      //          console.log(err);
+      //       } else {
+      //          if (!res.rows[0]) {
+      //             resp.send({ done: true });
+      //             setRideDone;
+      //             resp.status(200).end();
+      //             return;
+      //          }
+      //          // resp.send({ done: true });
+      //          // resp.status(200).end();
+      //          // return;
+      //          resp.status(200).send(res.rows[0]).end();
+      //       }
+      //    }
+      // );
    } catch (error) {
       console.log("ERROR rate: ", error);
    }
 });
 
 //terminar viaje yuberrequestdone
-app.post("/setRideDone", (req, resp) => {
+app.post("/setRideDone", async (req, resp) => {
    try {
-      const { idSolicitud, passengerUsername } = req.body;
-      console.log("/setRideDone", idSolicitud);
-      poolLock.query(
-         pool,
-         `UPDATE ride
-         SET done = TRUE
-         WHERE "idCabRequest" = '${idSolicitud}'`,
-         (err, res) => {
-            if (err) {
-               resp.status(401).send({ message: "error on save ride" });
-               console.log(err);
-            } else {
-               resp.sendStatus(200).end();
-            }
-         }
-      );
-      session_handler.pushMessage(passengerUsername.toString(), { event: estadoViaje.FINALIZADO });
+      const { idCabRequest, passengerUsername, timeEnd } = req.body;
+      console.log("/setRideDone", idCabRequest);
+
+      const response = await utils.setDoneCRequest(pool, idCabRequest, constants.estadoViaje.FINALIZADO, timeEnd);
+      // poolLock.query(
+      //    pool,
+      //    `UPDATE ride
+      //    SET done = TRUE
+      //    WHERE "idCabRequest" = '${idCabRequest}'`,
+      //    (err, res) => {
+      //       if (err) {
+      //          resp.status(401).send({ message: "error on save ride" });
+      //          console.log(err);
+      //       } else {
+      //          resp.sendStatus(200).end();
+      //       }
+      //    }
+      // );
+
+      if (response.ok) {
+         session_handler.pushMessage(passengerUsername.toString(), { event: estadoViaje.FINALIZADO });
+         resp.sendStatus(200).end();
+      } else {
+         resp.status(401).send({ message: "error on save ride" });
+      }
    } catch (error) {
       console.log("ERROR rate: ", error);
    }
@@ -378,8 +433,8 @@ app.post("/rate", async (req, resp) => {
          toClientType = "driver";
       } else toClientType = "passenger";
 
-      const { idSolicitud, rating, comment } = req.body;
-      console.log("/rate", idSolicitud, rating, comment);
+      const { idCabRequest, rating, comment } = req.body;
+      console.log("/rate", idCabRequest, rating, comment);
       if (toClientType == "driver") {
          //soy passenger, puntuo driver
          await poolLock.query(
@@ -387,7 +442,7 @@ app.post("/rate", async (req, resp) => {
             `UPDATE ride
             SET "ratingPassengerToDriver" = ${rating}
             ${comment ? ", commentPassengerToDriver = '" + comment + "'" : ""}
-            WHERE "idCabRequest" = '${idSolicitud}'`,
+            WHERE "idCabRequest" = '${idCabRequest}'`,
             (err, res) => {
                if (err) {
                   resp.status(401).send({ message: "error on save ride" });
@@ -397,7 +452,7 @@ app.post("/rate", async (req, resp) => {
                }
             }
          );
-         await utils.updateRatings(pool, idSolicitud, true, rating);
+         await utils.updateRatings(pool, idCabRequest, true, rating);
       } else {
          //soy driver, puntuo passenger
          poolLock.query(
@@ -405,7 +460,7 @@ app.post("/rate", async (req, resp) => {
             `UPDATE ride
             SET "ratingDriverToPassenger" = ${rating}
             ${comment ? ", commentDriverToPassenger = '" + comment + "'" : ""}
-            WHERE "idCabRequest" = '${idSolicitud}'`,
+            WHERE "idCabRequest" = '${idCabRequest}'`,
             (err, res) => {
                if (err) {
                   resp.status(401).send({ message: "error on save ride" });
@@ -415,7 +470,7 @@ app.post("/rate", async (req, resp) => {
                }
             }
          );
-         await utils.updateRatings(pool, idSolicitud, false, rating);
+         await utils.updateRatings(pool, idCabRequest, false, rating);
       }
    } catch (error) {
       console.log("ERROR rate: ", error);
@@ -521,38 +576,13 @@ app.post("/logIn", (req, res) => {
    }
 });
 
-app.post("/saveRide", async (req, resp) => {
-   try {
-      console.log("/saveRide");
-      const { latitude, longitude, driverUsername, passengerUsername, idSolicitud } = req.body;
-      //idSolicitudDriverPasengerMap.set(idSolicitud)={clientAdress:{ip:null, port:null}}
-      idSolicitudDriverIdPassengerId.set(idSolicitud, { passengerId: passengerUsername, driverId: driverUsername });
-      console.log("/saveRide", driverUsername, passengerUsername, latitude, longitude, idSolicitud);
-      poolLock.query(
-         pool,
-         `INSERT INTO ride(idCabRequest, driverId, passengerId, latitude, longitude)
-        VALUES (${idSolicitud}, ${driverUsername}, ${passengerUsername}, ${latitude}, ${longitude})`,
-         (err, res) => {
-            if (err) {
-               resp.status(401).send({ message: "error on save ride" });
-               console.log(err);
-            } else {
-               resp.sendStatus(200).end();
-            }
-         }
-      );
-   } catch (error) {
-      console.log("ERROR end saveRide");
-   }
-});
-
 app.post("/setPushNotificationToken", async (req, resp) => {
    try {
       const username = req.header("x-user-id");
       const { token } = req.body;
       console.log("setPushNotificationToken", username, token);
       setPushNotificationToken(username, token);
-      utils.checkDrivers(pool, token);
+      utils.checkDrivers(pool, token, username);
       resp.sendStatus(200).end();
    } catch (error) {
       console.log("ERROR setPushNotificationToken", error);
@@ -581,18 +611,18 @@ const setPushNotificationToken = (username, token) => {
 
 app.post("/sendMessage", async (req, res) => {
    try {
-      console.log("/sendMessage", req.body.idSolicitud);
+      console.log("/sendMessage", req.body.idCabRequest);
       let clientType = req.headers["x-user-type"];
-      const { message, time, idSolicitud } = req.body;
+      const { message, time, idCabRequest } = req.body;
 
-      const resChat = await utils.getChat(pool, idSolicitud);
+      const resChat = await utils.getChat(pool, idCabRequest);
       if (!resChat.chat) {
          resChat.chat = JSON.stringify([]);
       }
       const chat = JSON.parse(resChat.chat);
 
       let messageData = {
-         id: idSolicitud,
+         id: idCabRequest,
          user: clientType == "driver" ? "d" : "p",
          message: message,
          time: time,
@@ -604,7 +634,7 @@ app.post("/sendMessage", async (req, res) => {
 
       if (clientType == "driver") destToken = resChat.passengerToken;
       else destToken = resChat.driverToken;
-      utils.setChat(pool, idSolicitud, JSON.stringify(chat));
+      utils.setChat(pool, idCabRequest, JSON.stringify(chat));
 
       clientType == "driver" ? "d" : "p";
       if (destToken) {
@@ -625,28 +655,28 @@ app.post("/sendMessage", async (req, res) => {
 
 app.post("/getChat", async (req, res) => {
    try {
-      const resChat = await utils.getChat(pool, req.body.idSolicitud);
-      res.send(JSON.parse(resChat.chat)).end();
+      const resChat = await utils.getChat(pool, req.body.idCabRequest);
+      res.status(200).send(JSON.parse(resChat.chat)).end();
    } catch (error) {
       console.log("Error getChat: ", error);
    }
 });
 
-const limpioDatosDeSolicitud = (idSolicitud, clearRequestMap = true) => {
+const limpioDatosDeSolicitud = (idCabRequest, clearRequestMap = true) => {
    try {
       const coso = idSolicitudInterval.get(idSolicitud);
       clearInterval(coso);
 
       //No hay mas choferes disponibles, avisar al usuario
       if (clearRequestMap) {
-         yuberRequestData.delete(idSolicitud);
+         yuberRequestData.delete(idCabRequest);
       }
-      arrayChoferes.delete(idSolicitud);
-      idSolicitudInterval.delete(idSolicitud);
+      arrayChoferes.delete(idCabRequest);
+      idSolicitudInterval.delete(idCabRequest);
       //chatMap.delete(idSolicitud);
       // driverPassengerChatTokens.delete(idSolicitud);
       //Le avise a todos los choferes, avisar al usuario
-      console.log("limpioDatosDeSolicitud", idSolicitudInterval.get(idSolicitud), idSolicitud);
+      console.log("limpioDatosDeSolicitud", idSolicitudInterval.get(idCabRequest), idCabRequest);
    } catch (error) {
       console.log("Error limpioDatosDeSolicitud: ", error);
    }
@@ -670,6 +700,7 @@ app.post("/getChoferPosition", (req, res) => {
    }
 });
 
+//Cliente solicita viaje
 app.post("/YuberRequest", async (req, res) => {
    try {
       const passengerUsername = req.header("x-user-id");
@@ -678,10 +709,30 @@ app.post("/YuberRequest", async (req, res) => {
       await utils.getClient(pool, passengerUsername).then((e) => {
          passengerClient = e;
       });
+      const {
+         startLatitude,
+         startLongitude,
+         requestTime,
+         passengerName,
+         passengerSurname,
+         originDescription,
+         destinationDescription,
+         endLatitude,
+         endLongitude,
+      } = req.body;
 
-      const responseQuery = await utils.createRide(pool, passengerUsername);
+      const responseQuery = await utils.createRide(
+         pool,
+         passengerUsername,
+         originDescription,
+         destinationDescription,
+         startLatitude,
+         startLongitude,
+         endLatitude,
+         endLongitude
+      );
 
-      const idSolicitud = responseQuery.idCabRequest;
+      const idCabRequest = responseQuery.idCabRequest;
       //const date = new Date();
       // let idSolicitud =
       //    date.getMonth().toString() +
@@ -691,20 +742,20 @@ app.post("/YuberRequest", async (req, res) => {
       //    date.getSeconds().toString() +
       //    date.getMilliseconds().toString();
 
-      console.log("/YuberRequest", idSolicitud);
-
-      const { token, latitude, longitude, requestTime } = req.body;
+      console.log("/YuberRequest", idCabRequest);
 
       let newRequest = {
-         idCabRequest: idSolicitud,
-         accepted: false,
-         startLatitude: latitude,
-         startLongitude: longitude,
-         passengerToken: req.body.token,
-         passengerUsername: passengerUsername,
+         idCabRequest,
+         // accepted: false,
+         startLatitude,
+         startLongitude,
+         passengerToken: req.body.passengerToken,
+         passengerUsername,
          requestTime,
          iterador: 0,
-         name: passengerClient.name,
+         passengerName,
+         passengerSurname,
+         // name: passengerClient.name,
       };
       //let resData = getArrayFromMap(choferesDisponibles);
       let resData;
@@ -726,15 +777,15 @@ app.post("/YuberRequest", async (req, res) => {
       // 	return;
       // }
 
-      yuberRequestData.set(idSolicitud, newRequest);
-      arrayChoferes.set(idSolicitud, resData);
+      yuberRequestData.set(idCabRequest, newRequest);
+      arrayChoferes.set(idCabRequest, resData);
       // resData.forEach((a) => {
       //     if (!choferesDisponibles.get(a.phone)) {
       //         choferesDisponibles.set(a.phone, a);
       //     }
       // });
 
-      const notificationRes = await utils.createNotification(pool, idSolicitud);
+      const notificationRes = await utils.createNotification(pool, idCabRequest);
 
       idNotificacionRequest = notificationRes?.idNotification;
 
@@ -744,12 +795,11 @@ app.post("/YuberRequest", async (req, res) => {
                u.token,
                {
                   screen: constants.DRIVER_SCREEN,
-                  navigateTo: constants.DRIVER_SCREEN,
                   event: events.NUEVO_VIAJE,
-                  cabRequest: {
-                     latitude,
-                     longitude,
-                     idSolicitud,
+                  cabRequestData: {
+                     startLatitude,
+                     startLongitude,
+                     idCabRequest,
                      passengerUsername,
                      requestTime,
                   },
@@ -762,7 +812,7 @@ app.post("/YuberRequest", async (req, res) => {
       });
 
       setTimeout(async () => {
-         const rideRes = await utils.getRide(pool, idSolicitud);
+         const rideRes = await utils.getRide(pool, idCabRequest);
          //Si todavia no fue agarrado le notifico a los conductores y al cliente del suceso, en caso contrario ya notifique al momento de tomarlo
          if (!rideRes.driverId) {
             const passenger = await utils.getClient(pool, passengerUsername);
@@ -776,6 +826,7 @@ app.post("/YuberRequest", async (req, res) => {
                   },
                   "En este momento no hay conductores "
                );
+               utils.setRideState(pool, idCabRequest, constants.estadoViaje.TIEMPO_FINALIZADO);
             } else {
                console.log("ERROR: pasajero sin token al intentar enviar la notificacion");
             }
@@ -810,7 +861,7 @@ app.post("/YuberRequest", async (req, res) => {
 
       // idSolicitudInterval.set(idSolicitud, interval);
 
-      res.status(200).send({ idSolicitud }).end();
+      res.status(200).send({ idCabRequest }).end();
    } catch (error) {
       console.log("Error YuberRequest: ", error);
    }
@@ -820,41 +871,43 @@ app.post("/YuberRequest", async (req, res) => {
 app.post("/clientAccept", (req, resp) => {
    try {
       console.log("Cliente acepta");
-      let idSolicitud = req.body.idSolicitud;
-      const requestData = waitingPassengerAcceptData.get(idSolicitud);
-      const passengerToken = yuberRequestData.get(idSolicitud).passengerToken;
+      let idCabRequest = req.body.idCabRequest;
+      const requestData = waitingPassengerAcceptData.get(idCabRequest);
+      const passengerToken = yuberRequestData.get(idCabRequest).passengerToken;
 
       utils.setEnViaje(pool, requestData.idChoferAccepted);
 
       poolLock.query(
          pool,
          `SELECT token
-            FROM Client  
+            FROM Client  SOCKET_UPDATE_DRIVER_LOCATION
             WHERE "clientId" = ${requestData.idChoferAccepted} `,
          (err, res) => {
             if (err) {
                console.log(err);
             } else {
-               const data = waitingPassengerAcceptData.get(idSolicitud);
+               const data = waitingPassengerAcceptData.get(idCabRequest);
                const driverToken = res.rows[0].token;
-               rideInProgressData.set(idSolicitud, { ...data, driverToken });
-               waitingPassengerAcceptData.delete(idSolicitud);
-               chatMap.set(idSolicitud, { chat: [], tokens: { passengerToken, driverToken: driverToken } });
+               // rideInProgressData.set(idSolicitud, { ...data, driverToken });
+               waitingPassengerAcceptData.delete(idCabRequest);
+               chatMap.set(idCabRequest, { chat: [], tokens: { passengerToken, driverToken: driverToken } });
 
                console.log("Notifico driver");
                sendPushNotification(driverToken, {
                   screen: constants.DRIVER_SCREEN,
-                  idSolicitud,
+                  idCabRequest,
                   done: true,
-                  requestData,
-                  cabRequest: requestData,
+                  cabRequestData: requestData,
+                  event: events.PASAJERO_ACEPTO,
                });
                resp.status(200).end();
             }
          }
       );
+
+      utils.setRideState(pool, idCabRequest, constants.estadoViaje.TRANSCURSO);
    } catch (error) {
-      console.log("Error startYuber: ", error);
+      console.log("Error clientAccept: ", error);
    }
 });
 
@@ -941,23 +994,23 @@ app.post("/stopYuber", (req, res) => {
 //chofer Acepta
 app.post("/acceptCabRequests", async (req, resp) => {
    const username = req.header("x-user-id");
-   const { idSolicitud, choferLocation, driverAcceptTime } = req.body;
+   const { idCabRequest, choferLocation, driverAcceptTime, carId } = req.body;
    console.log("acceptCabRequests", username);
 
-   lock.acquire(idSolicitud, async () => {
+   lock.acquire(idCabRequest, async () => {
       try {
          //FIX-ME (espero?)
 
-         ride = utils.getRide(pool, idSolicitud);
+         ride = utils.getRide(pool, idCabRequest);
 
          if (ride.driverId) {
             resp.status(200).json({ event: events.VIAJE_TOMADO }).end();
             return;
          }
 
-         utils.setDriverOnRide(pool, idSolicitud, username);
+         utils.setDriverOnRide(pool, idCabRequest, username, driverAcceptTime, carId);
 
-         const requestData = yuberRequestData.get(idSolicitud);
+         const requestData = yuberRequestData.get(idCabRequest);
          const passengerToken = requestData.passengerToken;
          const startLatitude = requestData.startLatitude;
          const startLongitude = requestData.startLongitude;
@@ -967,8 +1020,8 @@ app.post("/acceptCabRequests", async (req, resp) => {
             return;
          }
 
-         waitingPassengerAcceptData.set(idSolicitud, { ...requestData, idChoferAccepted: username, choferLocation });
-         limpioDatosDeSolicitud(idSolicitud, false);
+         waitingPassengerAcceptData.set(idCabRequest, { ...requestData, idChoferAccepted: username, choferLocation });
+         limpioDatosDeSolicitud(idCabRequest, false);
 
          const sentNotifications = await utils.getSentNotification(pool, idNotificacionRequest);
 
@@ -990,7 +1043,7 @@ app.post("/acceptCabRequests", async (req, resp) => {
 
          poolLock.query(
             pool,
-            `SELECT *
+            `SELECT "plateNumber", name, surname, rating, "ratingsQuantity", brand, model, photo, url, originDescription, "destinationDescription"
         FROM client FULL JOIN driver ON client."clientId" = driver."driverId" FULL JOIN car ON driver."activeCar" = car."carId"
         WHERE "clientId" = ${username} `,
             (err, res) => {
@@ -1005,17 +1058,13 @@ app.post("/acceptCabRequests", async (req, resp) => {
                            screen: constants.WAITING_DRIVER_SCREEN,
                            driverAcceptTime,
                            event: events.CHOFER_ACEPTO,
-                           ...res.rows[0],
-                           aceptado: true,
-                           idSolicitud,
-                           driverUserName: username,
-                           idChoferAccepted: username,
-                           choferLatitude: choferLocation.latitude,
-                           choferLongitude: choferLocation.longitude,
+                           idCabRequest,
+                           // driverUserName: username,
+                           choferLocation,
                            startLongitude,
                            startLatitude,
-                           // Fix-me
                            requestTime: new Date(),
+                           ...res.rows[0],
                         },
                         "!Conductor disponible!",
                         "Pulsa para ir a confirmar"
@@ -1066,9 +1115,9 @@ app.get("/getRides/:from/:to", (req, resp) => {
       console.log("getRides", username, from, to);
       poolLock.query(
          pool,
-         `SELECT date, paid, latitude, longitude, "idCabRequest"
+         `SELECT date, paid, latitude, longitude, "idCabRequest", "originDescription", "destinationDescription"
         FROM ride
-        WHERE "driverId" = '${username}' OR "passengerId" = '${username}'
+        WHERE "driverId" = '${username}' OR "passengerId" = '${username}' AND done = ${true}
         ORDER BY date DESC`,
          (err, res) => {
             if (err) {
@@ -1090,6 +1139,50 @@ app.get("/getRides/:from/:to", (req, resp) => {
                   resp.status(200).end();
                } catch (error) {
                   resp.status(401).send({ message: "invalid email" });
+               }
+            }
+         }
+      );
+   } catch (error) {
+      console.log("Error getRides: ", error);
+   }
+});
+
+app.get("/getRide/:idCabRequest", async (req, resp) => {
+   try {
+      const { idCabRequest } = req.params;
+      const username = req.header("x-user-id");
+      console.log("getRide", idCabRequest);
+
+      // const route = await axios.get(
+      //    `https://maps.googleapis.com/maps/api/directions/json?origin=${-34.905265862586056},${-56.160497145460376}&destination=${-34.89150394902839},${-56.16757804913056}&mode=driving&key=AIzaSyDEm9HPEOTnpuWSfysuxpy4nfwyF047iQc`
+      //    // `https://maps.googleapis.com/maps/api/directions/json?origin=${40.727471902629816},${-73.99095959431263}&destination=${40.762205051510584},${-73.97025308013983}&mode=driving&key=AIzaSyDEm9HPEOTnpuWSfysuxpy4nfwyF047iQc`
+      // );
+      // const route2 = route.data?.routes[0].overview_polyline.points;
+      // console.log(route2);
+
+      poolLock.query(
+         pool,
+         // `SELECT date, paid, latitude, longitude, "idCabRequest", "originDescription", "destinationDescription", r."driverId"
+         `SELECT *
+        FROM ride r JOIN car c on r."carId" = c."carId"  
+        WHERE "idCabRequest" = '${idCabRequest}'`,
+         (err, res) => {
+            if (err) {
+               console.log("Error - Failed to select all from Users");
+               console.log(err);
+            } else {
+               try {
+                  resp.send({
+                     ...res.rows[0],
+                     // mapUrl:
+                     //    "https://maps.googleapis.com/maps/api/staticmap?size=414x200&path=" +
+                     //    route2 +
+                     //    "&key=AIzaSyDEm9HPEOTnpuWSfysuxpy4nfwyF047iQc",
+                  });
+                  resp.status(200).end();
+               } catch (error) {
+                  resp.status(401).end();
                }
             }
          }
@@ -1168,12 +1261,44 @@ app.post("/editSettings", (req, res) => {
    }
 });
 
+app.post("/opinion", (req, res) => {
+   try {
+      console.log("/opinion");
+      const username = req.header("x-user-id");
+      const { message, date } = req.body;
+
+      utils.createOpinion(
+         pool,
+         username,
+         message,
+         new Date().toLocaleString("en-US", { timeZone: "America/Montevideo" })
+      );
+
+      res.sendStatus(200).end();
+   } catch (error) {
+      console.log("Error opinion: ", error);
+   }
+});
+
 app.get("/getUserSettings", async (req, res) => {
    try {
       const username = req.header("x-user-id");
       console.log("getUserSettings", username);
 
       const userSettings = await utils.getUserSettings(pool, username);
+
+      res.send(userSettings).end();
+   } catch (error) {
+      console.log("Error getUserSettings: ", error);
+   }
+});
+
+app.post("/channels", async (req, res) => {
+   try {
+      const username = req.header("x-user-id");
+      const { channels } = req.body;
+      console.log(channels);
+      const userSettings = await utils.setChannels(pool, username, channels);
 
       res.send(userSettings).end();
    } catch (error) {
