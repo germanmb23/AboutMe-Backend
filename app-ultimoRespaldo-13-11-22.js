@@ -3,7 +3,6 @@
 //heroku login
 //https://mac-blog.org.ua/node-rest-udp
 //https://jaygould.co.uk/2022-04-06-too-many-connections-for-role-error-postgres-serverless-vercel%20copy/
-//flyctl deploy
 const cors = require("cors");
 const express = require("express");
 const ejs = require("ejs");
@@ -349,7 +348,6 @@ let rideInProgressData = new Map();
 let waitingPassengerAcceptData = new Map();
 let iteradorId = new Map();
 let arrayChoferes = new Map();
-let choferLocationMap = new Map();
 //let waitingIdSolicitud = new Map();
 let idSolititudAccepted = new Map();
 let idSolicitudInterval = new Map();
@@ -671,9 +669,9 @@ const limpioDatosDeSolicitud = (idCabRequest, clearRequestMap = true) => {
 
       //No hay mas choferes disponibles, avisar al usuario
       if (clearRequestMap) {
-         // yuberRequestData.delete(idCabRequest);
+         yuberRequestData.delete(idCabRequest);
       }
-      // arrayChoferes.delete(idCabRequest);
+      arrayChoferes.delete(idCabRequest);
       idSolicitudInterval.delete(idCabRequest);
       //chatMap.delete(idSolicitud);
       // driverPassengerChatTokens.delete(idSolicitud);
@@ -708,12 +706,14 @@ app.post("/YuberRequest", async (req, res) => {
    try {
       const passengerUsername = req.header("x-user-id");
 
+      var passengerClient;
       await utils.getClient(pool, passengerUsername).then((e) => {
          passengerClient = e;
       });
       const {
          requestTime,
          passengerName,
+         passengerSurname,
          originDescription,
          destinationDescription,
          startLatitude,
@@ -730,16 +730,24 @@ app.post("/YuberRequest", async (req, res) => {
          startLatitude,
          startLongitude,
          endLatitude,
-         endLongitude,
-         requestTime
+         endLongitude
       );
 
       const idCabRequest = responseQuery.idCabRequest;
+      //const date = new Date();
+      // let idSolicitud =
+      //    date.getMonth().toString() +
+      //    date.getDay().toString() +
+      //    date.getHours().toString() +
+      //    date.getMinutes().toString() +
+      //    date.getSeconds().toString() +
+      //    date.getMilliseconds().toString();
 
       console.log("/YuberRequest", idCabRequest);
 
       let newRequest = {
          idCabRequest,
+         // accepted: false,
          startLatitude,
          startLongitude,
          passengerToken: req.body.passengerToken,
@@ -747,15 +755,36 @@ app.post("/YuberRequest", async (req, res) => {
          requestTime,
          iterador: 0,
          passengerName,
+         passengerSurname,
+         // name: passengerClient.name,
       };
-
+      //let resData = getArrayFromMap(choferesDisponibles);
       let resData;
 
       await utils.getChoferesDisponibles(pool).then((e) => {
          resData = e;
       });
 
-      // yuberRequestData.set(idCabRequest, newRequest);
+      // if (resData.length == 0) {
+      // 	sendPushNotification(req.body.myExpoToken, '', {
+      // 		screen: constants.WAITING_DRIVER_SCREEN,
+      // 		allDriversNotified: true,
+      // 	});
+      // 	sendPushNotification(req.body.myExpoToken, '', {
+      // 		screen: constants.WAITING_DRIVER_SCREEN,
+      // 		allDriversNotified: true,
+      // 	});
+      // 	res.send({ idSolicitud: idSolicitud });
+      // 	return;
+      // }
+
+      yuberRequestData.set(idCabRequest, newRequest);
+      arrayChoferes.set(idCabRequest, resData);
+      // resData.forEach((a) => {
+      //     if (!choferesDisponibles.get(a.phone)) {
+      //         choferesDisponibles.set(a.phone, a);
+      //     }
+      // });
 
       const notificationRes = await utils.createNotification(pool, idCabRequest);
 
@@ -840,17 +869,12 @@ app.post("/YuberRequest", async (req, res) => {
 });
 
 //Passenger accepta cliente acepta
-//Paso3 step3
-app.post("/clientAccept", async (req, resp) => {
+app.post("/clientAccept", (req, resp) => {
    try {
       console.log("Cliente acepta");
       let idCabRequest = req.body.idCabRequest;
-      // const requestData = waitingPassengerAcceptData.get(idCabRequest);
-      requestData = await utils.getRide(pool, idCabRequest);
-      let choferLocation = choferLocationMap.get(requestData?.driverId);
-
-      // const passengerToken = yuberRequestData.get(idCabRequest).passengerToken;
-      const passengerToken = requestData.passengerToken;
+      const requestData = waitingPassengerAcceptData.get(idCabRequest);
+      const passengerToken = yuberRequestData.get(idCabRequest).passengerToken;
 
       utils.setEnViaje(pool, requestData.idChoferAccepted);
 
@@ -863,9 +887,10 @@ app.post("/clientAccept", async (req, resp) => {
             if (err) {
                console.log(err);
             } else {
+               const data = waitingPassengerAcceptData.get(idCabRequest);
                const driverToken = res.rows[0].token;
                // rideInProgressData.set(idSolicitud, { ...data, driverToken });
-               // waitingPassengerAcceptData.delete(idCabRequest);
+               waitingPassengerAcceptData.delete(idCabRequest);
                chatMap.set(idCabRequest, { chat: [], tokens: { passengerToken, driverToken: driverToken } });
 
                console.log("Notifico driver");
@@ -873,7 +898,7 @@ app.post("/clientAccept", async (req, resp) => {
                   screen: constants.DRIVER_SCREEN,
                   idCabRequest,
                   done: true,
-                  cabRequestData: { ...requestData, choferLocation },
+                  cabRequestData: requestData,
                   event: events.PASAJERO_ACEPTO,
                });
                resp.status(200).end();
@@ -968,7 +993,6 @@ app.post("/stopYuber", (req, res) => {
 });
 
 //chofer Acepta
-//Paso2 step2
 app.post("/acceptCabRequests", async (req, resp) => {
    const username = req.header("x-user-id");
    const { idCabRequest, choferLocation, driverAcceptTime, carId } = req.body;
@@ -978,8 +1002,7 @@ app.post("/acceptCabRequests", async (req, resp) => {
       try {
          //FIX-ME (espero?)
 
-         // ride = utils.getRide(pool, idCabRequest);
-         let requestData = utils.getRide(pool, idCabRequest);
+         ride = utils.getRide(pool, idCabRequest);
 
          if (ride.driverId) {
             resp.status(200).json({ event: events.VIAJE_TOMADO }).end();
@@ -988,7 +1011,7 @@ app.post("/acceptCabRequests", async (req, resp) => {
 
          utils.setDriverOnRide(pool, idCabRequest, username, driverAcceptTime, carId);
 
-         // const requestData = yuberRequestData.get(idCabRequest);
+         const requestData = yuberRequestData.get(idCabRequest);
          const passengerToken = requestData.passengerToken;
          const startLatitude = requestData.startLatitude;
          const startLongitude = requestData.startLongitude;
@@ -998,11 +1021,7 @@ app.post("/acceptCabRequests", async (req, resp) => {
             return;
          }
 
-         // ride = await utils.getRide(pool, idCabRequest);
-
-         // waitingPassengerAcceptData.set(idCabRequest, { ...requestData, idChoferAccepted: username, choferLocation });
-         // waitingPassengerAcceptData.set(idCabRequest, { ...ride, idChoferAccepted: username, choferLocation });
-         choferLocationMap.set(username, choferLocation);
+         waitingPassengerAcceptData.set(idCabRequest, { ...requestData, idChoferAccepted: username, choferLocation });
          limpioDatosDeSolicitud(idCabRequest, false);
 
          const sentNotifications = await utils.getSentNotification(pool, idNotificacionRequest);
@@ -1120,7 +1139,7 @@ app.get("/getRides/:from/:to", (req, resp) => {
                   resp.send(result);
                   resp.status(200).end();
                } catch (error) {
-                  console.log("Error getRides consulta: ", error);
+                  resp.status(401).send({ message: "invalid email" });
                }
             }
          }
@@ -1272,31 +1291,6 @@ app.get("/getUserSettings", async (req, res) => {
       res.send(userSettings).end();
    } catch (error) {
       console.log("Error getUserSettings: ", error);
-   }
-});
-
-app.get("/getNotificationsCount", async (req, res) => {
-   try {
-      const username = req.header("x-user-id");
-      console.log("getNotificationsCount", username);
-      const notificationsCount = await utils.getNotificationsCount(pool, username);
-      res.send({ notificationsCount: notificationsCount.count }).end();
-      console.log(notificationsCount);
-   } catch (error) {
-      console.log("Error getNotificationsCount: ", error);
-   }
-});
-
-app.get("/getNotifications/:pageFrom/:pageSize", async (req, res) => {
-   try {
-      const { pageFrom, pageSize } = req.params;
-      const username = req.header("x-user-id");
-      console.log("getNotifications", username, pageFrom, pageSize);
-      const notifications = await utils.getNotifications(pool, username, pageFrom, pageSize);
-      console.log(notifications);
-      res.send(notifications).end();
-   } catch (error) {
-      console.log("Error getNotifications: ", error);
    }
 });
 

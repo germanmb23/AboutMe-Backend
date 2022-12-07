@@ -205,13 +205,14 @@ const createRide = (
    startLatitude,
    startLongitude,
    endLatitude,
-   endLongitude
+   endLongitude,
+   requestTime
 ) => {
    return new Promise((resolve, reject) => {
       poolLock.query(
          pool,
-         `INSERT INTO ride("passengerId", "originDescription", "destinationDescription", "startLatitude", "startLongitude",  "endLatitude", "endLongitude")
-         VALUES(${passengerId}, '${originDescription}', '${destinationDescription}', '${startLatitude}', '${startLongitude}', '${endLatitude}', '${endLongitude}') RETURNING "idCabRequest"`,
+         `INSERT INTO ride("passengerId", "originDescription", "destinationDescription", "startLatitude", "startLongitude",  "endLatitude", "endLongitude", date)
+         VALUES(${passengerId}, '${originDescription}', '${destinationDescription}', '${startLatitude}', '${startLongitude}', '${endLatitude}', '${endLongitude}', ${requestTime}) RETURNING "idCabRequest"`,
          (err, res) => {
             if (err) {
                console.log(err);
@@ -244,8 +245,8 @@ const getRide = (pool, idCabRequest) => {
    return new Promise((resolve, reject) => {
       poolLock.query(
          pool,
-         `SELECT * 
-         FROM ride
+         `SELECT r."idCabRequest", r."startLatitude", r."startLongitude",  r."endLatitude", r."endLongitude", r.date as "requestTime", c.name as "passengerName", c.token as "passengerToken", r."passengerId" as "passengerUsername"    
+         FROM ride r left join client c on r."passengerId" = c."clientId"
          WHERE "idCabRequest" = '${idCabRequest}'`,
          (err, res) => {
             if (err) {
@@ -478,6 +479,44 @@ const checkDrivers = (pool, token, username) => {
    });
 };
 
+const getNotificationsCount = (pool, clientId) => {
+   return new Promise((resolve, reject) => {
+      poolLock.query(
+         pool,
+         `SELECT count(*)
+         FROM SentNotification
+         WHERE "clientId" = '${clientId}' AND "readDate" is null`,
+         (err, res) => {
+            if (err) {
+               console.log(err);
+            } else {
+               resolve(res.rows[0]);
+            }
+         }
+      );
+   });
+};
+
+const getNotifications = (pool, clientId, pageFrom, pageSize) => {
+   return new Promise((resolve, reject) => {
+      poolLock.query(
+         pool,
+         `SELECT *
+         FROM SentNotification sN LEFT JOIN Notification n on (sN."idNotification" = n."idNotification")
+         WHERE "clientId" = '${clientId}' AND "readDate" is NULL
+         OFFSET ${pageFrom}
+         LIMIT ${pageSize}`,
+         (err, res) => {
+            if (err) {
+               console.log(err);
+            } else {
+               resolve(res.rows);
+            }
+         }
+      );
+   });
+};
+
 module.exports = {
    setNotificando,
    getChat,
@@ -504,4 +543,6 @@ module.exports = {
    setRideState,
    createOpinion,
    setChannels,
+   getNotificationsCount,
+   getNotifications,
 };

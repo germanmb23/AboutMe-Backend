@@ -123,22 +123,6 @@ CREATE TABLE Ride(
 
 );
 
-CREATE TABLE Notification(
-    -- rideId INT GENERATED ALWAYS AS IDENTITY,
-	  "idNotification" INT GENERATED ALWAYS AS IDENTITY,
-    "idCabRequest" INT,
-    PRIMARY KEY("idNotification"),
-    FOREIGN KEY("idCabRequest") REFERENCES Ride("idCabRequest")
-  );
-
-CREATE TABLE Notification(
-    -- rideId INT GENERATED ALWAYS AS IDENTITY,
-	  "idNotification" INT GENERATED ALWAYS AS IDENTITY,
-    "idCabRequest" INT,
-    PRIMARY KEY("idNotification"),
-    FOREIGN KEY("idCabRequest") REFERENCES Ride("idCabRequest")
-  );
-
 CREATE TABLE Channel(
 	  "idChannel" INT GENERATED ALWAYS AS IDENTITY,
 	  "name" TEXT
@@ -150,8 +134,13 @@ INSERT INTO Channel (name) values ('Televisión');
 INSERT INTO Channel (name) values ('Me contaron');
 INSERT INTO Channel (name) values ('otro');
 
-
-
+CREATE TABLE PendingRide(
+  	"idCabRequest" INT, 
+    "driverId" INT,
+    PRIMARY KEY("idCabRequest", "driverId"),
+    FOREIGN KEY("idCabRequest") REFERENCES Ride("idCabRequest"),
+    FOREIGN KEY("driverId") REFERENCES Driver("driverId")
+);
 
 CREATE TABLE UserChannel(
 	  "idChannel" INT,
@@ -160,6 +149,30 @@ CREATE TABLE UserChannel(
     FOREIGN KEY("clientId") REFERENCES client("clientId")
    );
 
+CREATE TABLE Notification(
+    -- rideId INT GENERATED ALWAYS AS IDENTITY,
+	  "idNotification" INT GENERATED ALWAYS AS IDENTITY,
+    --Si tiene idCabRequest son notificaciones a conductores, si no para usuarios (ofertas, noticias, etc)
+    "idCabRequest" INT,
+    "expirationDate" TIMESTAMP,
+    "title" TEXT,
+    "body" TEXT,
+    "titleAction" TEXT,
+    PRIMARY KEY("idNotification"),
+    FOREIGN KEY("idCabRequest") REFERENCES Ride("idCabRequest")
+);
+
+CREATE TABLE SentNotification(
+	  "idSentNotification" INT GENERATED ALWAYS AS IDENTITY,
+    "idNotification" INT,
+    "clientId" INT,
+    "readDate" TIMESTAMP,
+    "actioned" BOOLEAN,
+    "deletedDate" TIMESTAMP,
+    PRIMARY KEY("idSentNotification"),
+    FOREIGN KEY("idNotification") REFERENCES Notification("idNotification"),
+    FOREIGN KEY("clientId") REFERENCES client("clientId")
+);
 CREATE TABLE Config(
 	config_id INT GENERATED ALWAYS AS IDENTITY,
 	id_solicitud INT DEFAULT 0
